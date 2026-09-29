@@ -14,4 +14,12 @@ export const queryKeys = {
     all: ["platforms"] as const,
     list: () => ["platforms", "list"] as const,
   },
+  ics: {
+    all: ["ics"] as const,
+    list: () => ["ics", "list"] as const,
+  },
+  programmers: {
+    all: ["programmers"] as const,
+    list: () => ["programmers", "list"] as const,
+  },
 }

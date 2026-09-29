@@ -159,7 +159,7 @@ export function BrandForm({
                       upload={uploadLogo}
                       accept={IMAGE_ACCEPT}
                       maxBytes={IMAGE_MAX_BYTES}
-                      messages={ar.brands.dropzone}
+                      messages={ar.dropzone}
                       alt={name || t.logo}
                       invalid={fieldState.invalid}
                       disabled={isSubmitting}

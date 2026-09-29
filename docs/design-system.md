@@ -160,7 +160,7 @@ Sizes add **`xl`** (h-11, `text-base`), the mobile CTA for "أضف إلى الس
 
 `StatusBadge` is domain-neutral. The `constants/` files (`order-status.ts`, `product-types.ts`), written with their features, map each enum value to a tone and an Arabic label. This is the mapping they must follow:
 
-**Stock** (derived from `stockQuantity` / `lowStockThreshold`)
+**Stock** (derived from `stockQuantity` / `lowStockThreshold`). Implemented: `stockState()` in `utils/stock-state.ts`, labels and tones in `STOCK_STATE_META` (`constants/product-types.ts`)
 
 | State | Label | Tone |
 |---|---|---|
@@ -192,7 +192,7 @@ Sizes add **`xl`** (h-11, `text-base`), the mobile CTA for "أضف إلى الس
 
 **`PaymentStatus`**: `PENDING` → `warning`, `SUCCESS` → `success`, `FAILED` → `destructive`, `REFUNDED` → `neutral`.
 
-**Programmer support** (`ProgrammerSupport.obd/boot/bench`): `Check` in `text-success` with `aria-label="مدعوم"`, `Minus` in `text-muted-foreground` with `aria-label="غير مدعوم"`. Not badges: the compatibility table is scanned by column.
+**Programmer support** (`ProgrammerSupport.obd/boot/bench`): `Check` in `text-success` with `aria-label="مدعوم"`, `Minus` in `text-muted-foreground` with `aria-label="غير مدعوم"`. Not badges: the compatibility table is scanned by column. The one exception is the admin programmers **list**, which summarises a tool's derived modes as `info` badges (OBD · Boot · Bench, labels from `PROGRAMMER_MODE_META`), because it's a row summary, not a table to scan.
 
 ---
 
@@ -201,7 +201,8 @@ Sizes add **`xl`** (h-11, `text-base`), the mobile CTA for "أضف إلى الس
 - **Product card**: cover (or the category glyph when `imageUrl` is null, never a placeholder photo), type badge at the start corner, "خصم" badge only with a real `compareAtPrice`, name, identifier in `<Ltr mono>`, meta line, stock + condition badges, `<Price>` and a cart icon button (disabled at zero stock). One card for all types, driven by `PRODUCT_TYPE_META`.
 - **Checkout**: governorate `Select` → city → address; phone `dir="ltr"`; payment method as bordered radio cards (`has-data-checked:border-primary has-data-checked:bg-primary-soft`); summary with `<Price>`; one `size="xl"` primary button.
 - **Errors**: `aria-invalid` on the field (red ring from the primitive) and an Arabic message in `text-sm text-destructive` below it. In forms, `<Field data-invalid>` plus `<FieldError>` from `ui/field` do both. An action's overall error goes in a destructive `Alert` above the buttons.
-- **Image upload**: `FileDropzone` (`components/forms/file-dropzone.tsx`): a dashed drop area, then a preview on a white tile with replace and remove (remove is the outlined destructive button).
+- **Image upload**: `FileDropzone` (`components/forms/file-dropzone.tsx`): a dashed drop area, then a preview on a white tile with replace and remove (remove is the outlined destructive button). Its strings are `ar.dropzone`.
+- **List of identifiers** (IC markings): `TagInput` (`components/forms/tag-input.tsx`), mono LTR chips with an `X` each. Enter or a comma adds one, a pasted list adds all, and duplicates are dropped by `normalizeIdentifier`.
 - **Alerts**: `Alert` for info, `variant="destructive"` for failures; success/warning use the `*-soft` background with the matching text token (see `/design-system`).
 - **Loading**: `Skeleton` in the exact shape of the content it replaces.
 - **Toasts**: `toast.success("تمت الإضافة إلى السلة", { description })`, top-center.

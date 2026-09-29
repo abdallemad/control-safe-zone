@@ -30,6 +30,8 @@ The two documents that exist today are the **M0 milestone**. Every other documen
 - [ ] `admin-access-control.md` — how `/admin` is locked down *(the gate itself — `requireAdmin()` — is in `auth-feature.md`; this doc covers the rest of the admin shell)*
 - [x] [`brands-feature.md`](./brands-feature.md) — the reference CRUD feature, layer by layer (every other CRUD copies it): admin list / create / edit / delete, logo on R2
 - [x] [`controller-platforms-feature.md`](./controller-platforms-feature.md) — Bosch EDC17C46, MED17.5, SIMOS… the reference data every category links to: admin CRUD, delete blocked by any link
+- [x] [`programmers-admin-feature.md`](./programmers-admin-feature.md) — the admin programmer CRUD with the OBD / Boot / Bench compatibility editor, and the **shared product layer** (`product.*`) every sold type builds on
+- [x] [`ics-admin-feature.md`](./ics-admin-feature.md) — the admin IC CRUD, the first sold type: `Product` + `IcDetails` + platform links in one write, normalised part number / markings, cover on R2, delete blocked by order history
 - [x] [`product-images.md`](./product-images.md) — images on R2 through `/api/images/[...key]`: keys, upload rules (magic bytes, 2 MB, no SVG), the public route, config
 - [ ] `database-seeding.md` — realistic Arabic mock data for development
 
@@ -169,10 +171,10 @@ app/
 │       ├── layout.tsx        #   ✓ sidebar (right) + header — chrome only, no auth check
 │       ├── page.tsx          #   ✓ figures (placeholder stat cards)
 │       ├── hardware/         #   الهاردوير (a sidebar folder) — page.tsx redirects to programmers
-│       │   ├── programmers/  #   ✓ placeholder — المبرمجات     (+ new, [id]/edit later)
+│       │   ├── programmers/  #   ✓ list · new/ · [id]/edit/ — المبرمجات — programmers-admin-feature.md
 │       │   ├── controllers/  #   ✓ placeholder — الكنترولات    (+ new, [id]/edit later)
 │       │   ├── pinouts/      #   ✓ placeholder — البن أوت
-│       │   └── ics/          #   ✓ placeholder — الآي سيهات    (+ new, [id]/edit later)
+│       │   └── ics/          #   ✓ list · new/ · [id]/edit/ — الآي سيهات — ics-admin-feature.md
 │       ├── brands/           #   ✓ list · new/ · [id]/edit/ — brands-feature.md
 │       ├── platforms/        #   ✓ list · new/ · [id]/edit/ — controller-platforms-feature.md
 │       ├── orders/           #   ✓ placeholder
@@ -330,6 +332,10 @@ forms/
 ├── phone-field.tsx     # Egyptian mobile: 01[0125]XXXXXXXX
 ├── brand-form.tsx      # ✓ the reference entity form — brands-feature.md
 ├── platform-form.tsx   # ✓ controller-platforms-feature.md
+├── product-listing-fields.tsx # ✓ shared by every sold type: image / pricing (MoneyInput) / visibility cards, PlatformSelect
+├── ic-form.tsx         # ✓ ics-admin-feature.md — chip fields, platform rows (useFieldArray)
+├── programmer-form.tsx # ✓ programmers-admin-feature.md — tool fields, support rows with OBD / Boot / Bench
+├── tag-input.tsx       # ✓ string[] as chips (IC markings): Enter / comma / paste, de-duplicated
 └── <entity>-form.tsx   # one file per entity form
 ```
 
@@ -361,8 +367,9 @@ admin/
 │                     #   admin-breadcrumbs
 ├── brands/           # ✓ brands-view, brand-editor, delete-brand-dialog, brand-logo — brands-feature.md
 ├── platforms/        # ✓ platforms-view, platform-editor, delete-platform-dialog — controller-platforms-feature.md
-├── products/         # the per-type lists (programmers / controllers / ics pages share them)
-│                     #   + full-page add/edit (discriminated-union form)
+├── ics/              # ✓ ics-view, ic-editor, delete-ic-dialog — ics-admin-feature.md
+├── programmers/      # ✓ programmers-view, programmer-editor, delete-programmer-dialog — programmers-admin-feature.md
+├── products/         # ✓ product-image, stock-cell — the cells every sold type's table shares
 ├── pinouts/
 ├── orders/           # the queue, status transitions, COD confirmation
 ├── shipping-zones/
@@ -393,6 +400,8 @@ actions/
 ├── auth/           # ✓ sync-user.ts (syncUserAction), get-session.ts (getSessionAction) — auth-feature.md
 ├── brand/          # ✓ list-, create-, update-, delete-brand.ts, upload-brand-logo.ts — brands-feature.md
 ├── platform/       # ✓ list-, create-, update-, delete-platform.ts — controller-platforms-feature.md
+├── ic/             # ✓ list-, create-, update-, delete-ic.ts, upload-ic-image.ts — ics-admin-feature.md
+├── programmer/     # ✓ list-, create-, update-, delete-programmer.ts, upload-programmer-image.ts — programmers-admin-feature.md
 └── admin/
 ```
 
@@ -414,7 +423,7 @@ Business logic.
 ```text
 services/
 │
-├── product.service.ts
+├── product.service.ts      # ✓ rules every sold type shares — listing columns, money, errors, order-history delete
 ├── search.service.ts
 ├── pinout.service.ts
 ├── cart.service.ts
@@ -428,6 +437,8 @@ services/
 ├── storage.service.ts      # ✓ R2 — uploadImage / deleteImageByUrl / getImage (product-images.md)
 ├── brand.service.ts        # ✓ brands CRUD rules — brands-feature.md
 ├── platform.service.ts     # ✓ platforms CRUD rules — controller-platforms-feature.md
+├── ic.service.ts           # ✓ ICs CRUD rules — ics-admin-feature.md
+├── programmer.service.ts   # ✓ programmers CRUD rules — programmers-admin-feature.md
 ├── auth.service.ts         # ✓ the only server file that reads Clerk — getIdentity, getCurrentUser, requireSignedIn, requireAdmin
 └── user.service.ts         # ✓ syncFromIdentity — find / claim / create, ADMIN_EMAILS promotion
 ```
@@ -445,7 +456,7 @@ services/
 
 # repositories/
 
-Data access — the only layer that imports the Prisma client. One file per aggregate (`product.repository.ts`, `order.repository.ts`…). Services call repositories; nothing else does. Built so far (✓): `user.repository.ts` — selects session columns only, never the whole row; `brand.repository.ts`; `platform.repository.ts`.
+Data access — the only layer that imports the Prisma client. One file per aggregate (`product.repository.ts`, `order.repository.ts`…). Services call repositories; nothing else does. Built so far (✓): `user.repository.ts` — selects session columns only, never the whole row; `brand.repository.ts`; `platform.repository.ts`; `product.repository.ts` (shared by every sold type), `ic.repository.ts` and `programmer.repository.ts` (`Product` scoped to its type).
 
 ---
 
@@ -465,6 +476,8 @@ hooks/
 ├── use-session.ts         # ✓ name + role of the signed-in user (navbar admin button)
 ├── use-brands.ts          # ✓ list + create / update / delete / upload-logo mutations
 ├── use-platforms.ts       # ✓ list + create / update / delete mutations
+├── use-ics.ts             # ✓ list + create / update / delete / upload-image mutations
+├── use-programmers.ts     # ✓ list + create / update / delete / upload-image mutations
 └── use-mobile.ts          # ✓ from `shadcn add sidebar` — the one non-React-Query hook here
 ```
 
@@ -474,7 +487,7 @@ UI consumes hooks instead of calling Server Actions directly.
 
 # schemas/
 
-Zod schemas shared by forms and Server Actions — product, pinout, address, checkout, search… Messages in Arabic. Built so far (✓): `brand.schema.ts`, `platform.schema.ts`.
+Zod schemas shared by forms and Server Actions — product, pinout, address, checkout, search… Messages in Arabic. Built so far (✓): `brand.schema.ts`, `platform.schema.ts`, `product.schema.ts` (the listing fields every sold type spreads), `ic.schema.ts`, `programmer.schema.ts`.
 
 ---
 
@@ -524,7 +537,7 @@ prisma/
 
 Global TypeScript types: DTOs, `ActionResult`, search result, order summary.
 
-Built so far (✓): `action-result.ts` (`ActionResult<T>` with optional `fieldErrors`), `user.ts` (`ClerkIdentity`, `SessionUser`, `SessionSummary`, `AuthCallbackResult`), `brand.ts` (`BrandListItem`, `BrandDetail`), `platform.ts` (`PlatformListItem`, `PlatformDetail`, `PlatformLinkCounts`).
+Built so far (✓): `action-result.ts` (`ActionResult<T>` with optional `fieldErrors`), `user.ts` (`ClerkIdentity`, `SessionUser`, `SessionSummary`, `AuthCallbackResult`), `brand.ts` (`BrandListItem`, `BrandDetail`), `platform.ts` (`PlatformListItem`, `PlatformDetail`, `PlatformLinkCounts`), `ic.ts` (`IcListItem`, `IcDetail` — money as strings), `programmer.ts` (`ProgrammerListItem` with derived `modes`, `ProgrammerDetail`).
 
 ---
 
@@ -532,8 +545,9 @@ Built so far (✓): `action-result.ts` (`ActionResult<T>` with optional `fieldEr
 
 Pure functions — no React, no database.
 
-- `normalize-identifier.ts` ✓ — `"sak-tc 1797.512"` → `"SAKTC1797512"` (admin table search today; `*Normalized` columns next)
+- `normalize-identifier.ts` ✓ — `"sak-tc 1797.512"` → `"SAKTC1797512"` (admin table search, and the IC `*Normalized` columns)
 - `describe-platform-links.ts` ✓ — "12 كنترول، 3 آي سي" for the platform delete rule
+- `stock-state.ts` ✓ — `stockState(qty, threshold)` → `inStock` / `low` / `out` (tones in `STOCK_STATE_META`)
 - `format-price.ts` — EGP with `ar-EG`, Western digits (✓)
 - `format-date.ts` — Arabic dates
 - `egypt-phone.ts` — validate / normalise to `+20…`
@@ -544,7 +558,7 @@ Pure functions — no React, no database.
 
 # constants/
 
-- `product-types.ts` — `PRODUCT_TYPE_META` registry
+- `product-types.ts` ✓ (partly) — `IC_CATEGORIES`, `IC_CATEGORY_META`, `PROGRAMMER_MODES`, `PROGRAMMER_MODE_META`, `STOCK_STATE_META` today; the `PRODUCT_TYPE_META` registry comes with the storefront
 - `order-status.ts` — statuses, Arabic labels, allowed transitions
 - `governorates.ts` — the 27 governorates (Arabic names + codes)
 - `routes.ts` ✓ (`ROUTES`, `ADMIN_ROUTES`, `ADMIN_HARDWARE_ROOT`, `HOME_BY_ROLE`), `query-keys.ts` ✓, `navigation.ts` ✓ (`MAIN_NAV`), `admin-navigation.ts` ✓ (`ADMIN_SECTIONS`, `HARDWARE_FOLDER`, `ADMIN_NAV`, `findAdminSection`, `findAdminFolder`), `images.ts` ✓ (`IMAGE_MAX_BYTES`, `IMAGE_ACCEPT`), `roles.ts`, `pagination.ts`
@@ -581,7 +595,7 @@ Every feature follows the same order:
 
 - UI never talks to Prisma.
 - UI talks only to React Query hooks.
-  - *Exception:* read-only Server Component pages (catalog pages, the `/admin` figures) may call services directly for first-paint data and SEO. Document each one. Today: every `/admin/*` page (`authService.requireAdmin()`), the `/admin/brands` and `/admin/platforms` list prefetch and edit-page load (`brandService`, `platformService`), and `/auth-callback` (`authService.requireSignedIn()`).
+  - *Exception:* read-only Server Component pages (catalog pages, the `/admin` figures) may call services directly for first-paint data and SEO. Document each one. Today: every `/admin/*` page (`authService.requireAdmin()`), the `/admin/brands`, `/admin/platforms`, `/admin/hardware/ics` and `/admin/hardware/programmers` list prefetch and edit-page load (`brandService`, `platformService`, `icService`, `programmerService`), the platforms prefetch on the IC and programmer new/edit pages, and `/auth-callback` (`authService.requireSignedIn()`).
 - Hooks call Server Actions.
 - Server Actions call Services.
 - Services call Repositories; only Repositories touch Prisma.

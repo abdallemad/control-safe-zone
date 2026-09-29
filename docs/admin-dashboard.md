@@ -1,6 +1,6 @@
 # Admin Dashboard
 
-The `/admin` console: an Arabic, RTL shell with a **sidebar on the right**, a header with breadcrumbs, and one route per admin section. **Today every section is a placeholder.** The shell is final; each page's body is replaced when its feature is built (milestones M1–M7 in [`business-analysis.md`](./business-analysis.md#milestones)).
+The `/admin` console: an Arabic, RTL shell with a **sidebar on the right**, a header with breadcrumbs, and one route per admin section. **Brands, platforms, ICs and programmers are built; the other sections are still placeholders.** The shell is final; each page's body is replaced when its feature is built (milestones M1–M7 in [`business-analysis.md`](./business-analysis.md#milestones)).
 
 Access is covered in [`auth-feature.md`](./auth-feature.md): every page calls `authService.requireAdmin()`.
 
@@ -13,10 +13,10 @@ Access is covered in [`auth-feature.md`](./auth-feature.md): every page calls `a
 | Route | Section | Sidebar group | Built in | Today |
 |---|---|---|---|---|
 | `/admin` | لوحة التحكم | نظرة عامة | M7 (figures) | Welcome + four empty stat cards |
-| `/admin/hardware/programmers` | الكتالوج › الهاردوير › المبرمجات | الكتالوج | M2 | Placeholder |
+| `/admin/hardware/programmers` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › المبرمجات | الكتالوج | M2 | **Built** — list, create, edit, delete, cover on R2, supported platforms with OBD / Boot / Bench ([`programmers-admin-feature.md`](./programmers-admin-feature.md)) |
 | `/admin/hardware/controllers` | الكتالوج › الهاردوير › الكنترولات | الكتالوج | M2 | Placeholder |
 | `/admin/hardware/pinouts` | الكتالوج › الهاردوير › البن أوت | الكتالوج | M2 | Placeholder |
-| `/admin/hardware/ics` | الكتالوج › الهاردوير › الآي سيهات | الكتالوج | M2 | Placeholder |
+| `/admin/hardware/ics` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › الآي سيهات | الكتالوج | M2 | **Built** — list, create, edit, delete, cover on R2, platform links ([`ics-admin-feature.md`](./ics-admin-feature.md)) |
 | `/admin/brands` (+ `/new`, `/[id]/edit`) | الماركات | البيانات المرجعية | M1 | **Built** — list, create, edit, delete, logo on R2 ([`brands-feature.md`](./brands-feature.md)) |
 | `/admin/platforms` (+ `/new`, `/[id]/edit`) | منصات الكنترول | البيانات المرجعية | M1 | **Built** — list, create, edit, delete ([`controller-platforms-feature.md`](./controller-platforms-feature.md)) |
 | `/admin/orders` | الطلبات | المبيعات | M6 | Placeholder |
@@ -29,7 +29,7 @@ Access is covered in [`auth-feature.md`](./auth-feature.md): every page calls `a
 - `/admin/hardware` itself redirects to its first section (المبرمجات).
 - Each sold type has its **own page**. This replaces the single "المنتجات" page with IC / Controller / Programmer tabs that `folder-structure.md` first planned.
 
-Add/edit sub-routes (`/admin/hardware/ics/new`, `/admin/hardware/ics/[id]/edit`…) arrive with their features. The breadcrumbs and the active sidebar item already resolve them to their section.
+Add/edit sub-routes arrive with their features, as they did for ICs (`/admin/hardware/ics/new`, `/admin/hardware/ics/[id]/edit`). The breadcrumbs and the active sidebar item already resolve them to their section: لوحة التحكم › الهاردوير › الآي سيهات › إضافة.
 
 ---
 
