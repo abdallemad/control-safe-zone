@@ -1,26 +1,240 @@
-@import "tailwindcss";
+/* Clerk's styles go in their own layer (cssLayerName: "clerk" in
+   src/lib/clerk.ts), declared before `components` and `utilities` so a
+   Tailwind class passed to a Clerk component still wins. */
+@layer theme, base, clerk, components, utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Control Safe Zone — design tokens.
+ * The why behind every value is in docs/design-system.md; change the two
+ * together.
+ *
+ *  1. Brand scale   --brand-50 … --brand-950   light red, fixed across themes
+ *  2. Semantic      --primary, --success, --warning, --info, --destructive …
+ *                   remapped per theme under :root / .dark
+ *  3. Tailwind      @theme inline exposes both as bg-*, text-*, border-* …
+ */
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* ── Type ── IBM Plex Sans Arabic carries Arabic *and* Latin, so a part
+     number inside an Arabic sentence does not switch family mid-line.
+     Plex Mono is for identifiers shown on their own (<Ltr mono>). */
+  --font-sans: var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* ── Brand scale (light red) — static, not theme-switched ── */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  /* ── Semantic ── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Radius ── */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* ── Brand scale — hue 17→26, the light red of the logo ──
+     Contrast against white: 500 = 3.1:1 (fills, bold labels only),
+     600 = 4.4:1, 700 = 6.0:1 (first step safe for body text). */
+  --brand-50: oklch(0.975 0.014 17); /* #fff3f3 */
+  --brand-100: oklch(0.95 0.03 17); /* #ffe7e7 */
+  --brand-200: oklch(0.905 0.06 18); /* #ffd0d1 */
+  --brand-300: oklch(0.84 0.1 20); /* #ffb0b0 */
+  --brand-400: oklch(0.76 0.145 22); /* #ff8987 */
+  --brand-500: oklch(0.68 0.18 24); /* #f3625f  ← primary */
+  --brand-600: oklch(0.6 0.2 25); /* #de3b3d  ← hover / pressed */
+  --brand-700: oklch(0.52 0.18 26); /* #ba2b2b  ← red text on light */
+  --brand-800: oklch(0.44 0.15 26); /* #942222 */
+  --brand-900: oklch(0.37 0.12 25); /* #721c1c */
+  --brand-950: oklch(0.26 0.08 24); /* #430f10 */
+
+  /* Neutrals carry a faint warm tint (hue 20) so greys sit with the red
+     instead of looking blue next to it. */
+  --background: oklch(0.995 0.002 20);
+  --foreground: oklch(0.2 0.012 20); /* 18:1 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.012 20);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.012 20);
+
+  --primary: var(--brand-500);
+  --primary-foreground: oklch(1 0 0);
+  /* Tinted surface: selected filter, active nav item, "فيرجن" badge. */
+  --primary-soft: var(--brand-50);
+  /* Red *text* on a light surface — links, active labels. Never use
+     --primary for body-size text: 3.1:1 is below AA. */
+  --primary-ink: var(--brand-700);
+
+  --secondary: oklch(0.965 0.005 20);
+  --secondary-foreground: oklch(0.25 0.012 20);
+  --muted: oklch(0.965 0.005 20);
+  --muted-foreground: oklch(0.52 0.012 20); /* 5.5:1 */
+  --accent: var(--brand-50);
+  --accent-foreground: var(--brand-800);
+
+  /* Destructive is a *deeper*, bluer crimson than the brand so "delete" is
+     not "buy" — and it always carries an icon and an explicit verb. */
+  --destructive: oklch(0.5 0.19 27); /* #b7191c, 6.6:1 */
+
+  /* Status — stock, order state, payment. */
+  --success: oklch(0.52 0.13 155); /* #007e46, 5.2:1 — متوفر، تم التوصيل */
+  --success-soft: oklch(0.96 0.03 155);
+  --warning: oklch(0.75 0.15 70); /* #e99b2a — fills and dots only */
+  --warning-soft: oklch(0.97 0.035 80);
+  --warning-ink: oklch(0.5 0.11 60); /* #905211, 6.2:1 — كمية محدودة */
+  --info: oklch(0.55 0.15 250); /* #0f74c5, 4.9:1 — تم الشحن، جديد */
+  --info-soft: oklch(0.96 0.02 250);
+
+  --border: oklch(0.915 0.006 20);
+  --input: oklch(0.88 0.008 20);
+  --ring: var(--brand-400);
+
+  /* Charts lead with the brand, then contrast hues. */
+  --chart-1: var(--brand-500);
+  --chart-2: oklch(0.55 0.15 250);
+  --chart-3: oklch(0.52 0.13 155);
+  --chart-4: oklch(0.75 0.15 70);
+  --chart-5: oklch(0.5 0.012 20);
+
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.985 0.003 20);
+  --sidebar-foreground: oklch(0.2 0.012 20);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--brand-50);
+  --sidebar-accent-foreground: var(--brand-800);
+  --sidebar-border: oklch(0.915 0.006 20);
+  --sidebar-ring: var(--brand-400);
+}
+
+.dark {
+  --background: oklch(0.16 0.01 20);
+  --foreground: oklch(0.97 0.005 20);
+  --card: oklch(0.2 0.012 20);
+  --card-foreground: oklch(0.97 0.005 20);
+  --popover: oklch(0.2 0.012 20);
+  --popover-foreground: oklch(0.97 0.005 20);
+
+  /* Same light red on dark: the brand stays recognisable across themes. */
+  --primary: var(--brand-500);
+  --primary-foreground: oklch(1 0 0);
+  --primary-soft: oklch(0.68 0.18 24 / 14%);
+  --primary-ink: var(--brand-300);
+
+  --secondary: oklch(0.26 0.012 20);
+  --secondary-foreground: oklch(0.97 0.005 20);
+  --muted: oklch(0.26 0.012 20);
+  --muted-foreground: oklch(0.72 0.01 20);
+  --accent: oklch(0.68 0.18 24 / 14%);
+  --accent-foreground: var(--brand-200);
+
+  --destructive: oklch(0.7 0.19 22);
+
+  --success: oklch(0.72 0.15 155);
+  --success-soft: oklch(0.72 0.15 155 / 14%);
+  --warning: oklch(0.8 0.15 75);
+  --warning-soft: oklch(0.8 0.15 75 / 14%);
+  --warning-ink: oklch(0.85 0.13 80);
+  --info: oklch(0.72 0.13 245);
+  --info-soft: oklch(0.72 0.13 245 / 14%);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--brand-400);
+
+  --chart-1: var(--brand-400);
+  --chart-2: oklch(0.72 0.13 245);
+  --chart-3: oklch(0.72 0.15 155);
+  --chart-4: oklch(0.8 0.15 75);
+  --chart-5: oklch(0.65 0.01 20);
+
+  --sidebar: oklch(0.19 0.012 20);
+  --sidebar-foreground: oklch(0.97 0.005 20);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.68 0.18 24 / 14%);
+  --sidebar-accent-foreground: var(--brand-200);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: var(--brand-400);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Arabic needs more line height than Latin: tall ascenders and dots. */
+    line-height: 1.7;
+  }
+  ::selection {
+    @apply bg-brand-200 text-brand-950;
+  }
 }

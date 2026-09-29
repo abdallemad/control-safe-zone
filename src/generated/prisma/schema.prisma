@@ -1,0 +1,737 @@
+// Control Safe Zone — Prisma schema
+//
+// The hardware-only, Egypt-only sibling of ECU Safe Zone. Derived from the
+// ECU Safe Zone schema: everything that exists to sell *files* (Firmware,
+// Modification, Download, File, OnlineService…) is gone, and the hardware
+// catalog that was a side-section there is the whole store here.
+//
+// See docs/business-analysis.md and docs/folder-structure.md
+// ("Domain at a glance"). Money is always EGP, Decimal(10,2), never Float.
+
+// Prisma 7+: the connection URL no longer lives here — it is in
+// prisma.config.ts (Migrate) and in the PrismaClient adapter (src/lib/prisma.ts).
+// The client is generated into src/, imported as "@/generated/prisma/client".
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------
+// Enums
+// ----------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+/// Every category that is **sold and stocked**. One `Product` row per listing,
+/// plus exactly one detail row in the table named after its type.
+///
+/// Adding a member is a schema change *and* an entry in `PRODUCT_TYPE_META`
+/// (src/constants/product-types.ts) — the registry the storefront renders
+/// from, so no component branches on the type. Pinouts are not here: they are
+/// not stocked or shipped, so they are their own table (`Pinout`).
+enum ProductType {
+  IC
+  CONTROLLER
+  PROGRAMMER
+}
+
+/// What kind of chip an IC listing is. Drives the filter on /ics and the
+/// Arabic label (`IC_CATEGORY_META` in src/constants/product-types.ts).
+///
+/// Replaces ECU Safe Zone's `IcType` (EEPROM | EXTFLASH | MPC | INTFLASH),
+/// which described *how an ECU is read*, not *what a chip is* — a store that
+/// sells the chips needs the second.
+enum IcCategory {
+  MCU // TC1797, MPC5xx, MC9S12 …
+  EEPROM // 95xxx, 24Cxx, 93Cxx
+  FLASH // external flash
+  DRIVER // injector / ignition / H-bridge drivers (L9xxx, TLExxxx)
+  POWER // regulators, power supply ICs
+  OTHER
+}
+
+/// The physical state of a controller unit. Shown as a badge on every card —
+/// for a used ECU it is the first thing a technician asks.
+enum ProductCondition {
+  NEW
+  USED
+  REFURBISHED
+}
+
+/// The order lifecycle. One enum for both payment methods:
+///
+///   online: PENDING_PAYMENT ─(webhook)→ CONFIRMED → PROCESSING → SHIPPED → DELIVERED
+///   COD:    PENDING_CONFIRMATION ─(admin calls/WhatsApps)→ CONFIRMED → …
+///
+/// plus CANCELLED (from any state before SHIPPED) and RETURNED (after).
+/// Allowed transitions live in `ORDER_STATUS_TRANSITIONS`
+/// (src/constants/order-status.ts); `order.service.ts` is the only writer, and
+/// every transition into CANCELLED / RETURNED puts the stock back.
+enum OrderStatus {
+  PENDING_PAYMENT
+  PENDING_CONFIRMATION
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+/// How the customer chose to pay at checkout.
+enum PaymentMethod {
+  CARD // Paymob card / Meeza
+  WALLET // Paymob mobile wallet — Vodafone Cash, etc.
+  COD // cash on delivery
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+// ----------------------------------------------------------
+// Users
+// ----------------------------------------------------------
+
+/// A customer or admin. Identity (sign-in, email verification) lives in Clerk;
+/// this row is what the store needs: role, phone, orders. Created and kept in
+/// sync on every sign-in by /auth-callback → `userService.syncFromIdentity`
+/// (docs/auth-feature.md). `role` is owned *here*, never by Clerk.
+model User {
+  id          String   @id @default(cuid())
+  /// Clerk's user id (`user_…`) — the link between a session and this row.
+  clerkId     String   @unique
+  /// Clerk's primary, *verified* email, lower-cased. Unique, so a row seeded
+  /// by email (an admin, say) is claimed on that person's first sign-in.
+  email       String   @unique
+  fullName    String
+  /// Egyptian mobile, stored normalised as `+201XXXXXXXXX`
+  /// (`utils/egypt-phone.ts`). Optional on the account — required on every
+  /// order, where it is captured in the address snapshot.
+  phone       String?
+  companyName String? // workshop name — اسم الورشة
+  role        Role     @default(CUSTOMER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  addresses Address[]
+  cart      Cart?
+  orders    Order[]
+
+  @@map("users")
+}
+
+model Address {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Who receives the parcel — may differ from the account holder
+  /// (a technician ordering to the workshop, received by someone else).
+  recipientName String
+  phone         String // +201XXXXXXXXX
+
+  shippingZoneId String
+  city           String // المدينة / الحي
+  street         String
+  building       String?
+  floor          String?
+  apartment      String?
+  /// "بجوار …" — couriers in Egypt navigate by landmark more than by number.
+  landmark       String?
+
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Restrict: a governorate with saved addresses cannot be deleted —
+  /// deactivate it instead.
+  shippingZone ShippingZone @relation(fields: [shippingZoneId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ----------------------------------------------------------
+// Shipping — one row per governorate
+//
+// Seeded with the 27 governorates (prisma/seed.ts). The fee is per
+// governorate, not per product: ECU Safe Zone priced shipping per hardware
+// item because items dispatched from different countries; here everything
+// leaves one shelf in Egypt, so the destination is what changes the price.
+// ----------------------------------------------------------
+
+model ShippingZone {
+  id     String @id @default(cuid())
+  /// "القاهرة", "الجيزة", "أسوان" …
+  nameAr String @unique
+  nameEn String @unique
+  /// Stable code for seeding and URLs — "CAI", "GIZ", "ASW".
+  code   String @unique
+
+  shippingFee     Decimal @db.Decimal(10, 2)
+  deliveryMinDays Int     @default(1)
+  deliveryMaxDays Int     @default(3)
+
+  /// Some couriers do not collect cash in every governorate — and the business
+  /// may choose not to risk COD on long routes.
+  codAvailable Boolean @default(true)
+
+  /// Display order in the governorate select — Cairo and Giza first.
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+
+  @@index([isActive])
+  @@map("shipping_zones")
+}
+
+// ----------------------------------------------------------
+// Vehicle catalog — browse by car brand
+//
+// Kept from ECU Safe Zone, trimmed: a controller fits cars, and "كنترولات
+// تويوتا" is how a technician browses. Nothing here is sold.
+// ----------------------------------------------------------
+
+model Brand {
+  id      String  @id @default(cuid())
+  name    String  @unique // "Toyota"
+  nameAr  String? // "تويوتا"
+  slug    String  @unique // /brands/toyota
+  /// `/api/images/<key>` path string served from R2 — no `File` table here.
+  logoUrl String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  models VehicleModel[]
+
+  @@map("brands")
+}
+
+model VehicleModel {
+  id       String @id @default(cuid())
+  name     String
+  slug     String @unique
+  yearFrom Int?
+  yearTo   Int?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  brandId  String
+  brand    Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  products ProductVehicle[]
+
+  @@index([brandId])
+  @@index([name])
+  @@map("vehicle_models")
+}
+
+// ----------------------------------------------------------
+// Controller platforms — reference data
+//
+// ECU Safe Zone's `Controller`, renamed: here a *controller* is a product you
+// buy (a physical ECU unit), so the reference row it belongs to is a
+// *platform* — "Bosch EDC17C46", "Continental SIMOS 18.1". Every category
+// links to it, which is what makes the cross-sell work:
+//
+//   platform ──< controller units for sale
+//            ──< ICs used on it
+//            ──< programmers that support it
+//            ──< pinouts for it
+// ----------------------------------------------------------
+
+model ControllerPlatform {
+  id           String  @id @default(cuid())
+  name         String  @unique // "EDC17C46"
+  slug         String  @unique // /platforms/bosch-edc17c46
+  manufacturer String // "Bosch" — an ECU maker, not a car brand
+  description  String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  controllers ControllerDetails[]
+  ics         IcPlatform[]
+  programmers ProgrammerSupport[]
+  pinouts     Pinout[]
+
+  @@index([manufacturer])
+  @@map("controller_platforms")
+}
+
+// ----------------------------------------------------------
+// Products — everything sold and stocked
+//
+// One table for the columns every sold item has (price, stock, images,
+// shipping weight, status), and one 1:1 detail table per `ProductType` for the
+// columns only that type has. Chosen over ECU Safe Zone's single `Hardware`
+// table of nullable per-type columns because three types with disjoint
+// required fields made "which columns are required for which type" a rule
+// only the service knew; a detail table makes it a `NOT NULL`.
+//
+// Invariant, enforced by `product.service.ts` inside one transaction: a
+// product of type X has exactly one row in X's detail table and none in the
+// others.
+// ----------------------------------------------------------
+
+model Product {
+  id   String      @id @default(cuid())
+  type ProductType
+
+  /// SEO URL — /controllers/bosch-edc17c46-0281018758
+  slug String @unique
+
+  /// The card title, Arabic — "كنترول بوش EDC17C46". Identifiers inside it are
+  /// rendered LTR by the UI, not stored differently.
+  name        String
+  description String?
+
+  /// Chip or tool maker — Bosch, Infineon, NXP, Alientech. A plain column, not
+  /// a relation to `Brand` (car marques): same reasoning as ECU Safe Zone's
+  /// `Hardware.brand`.
+  manufacturer String
+
+  price          Decimal  @db.Decimal(10, 2)
+  /// Struck-through "was" price. Null means no discount is shown — never a
+  /// fake one.
+  compareAtPrice Decimal? @db.Decimal(10, 2)
+
+  /// Cover image, a path string (`/api/images/products/<uuid>.<ext>`, R2).
+  /// No default: null renders the category glyph (the ECU Safe Zone lesson —
+  /// a shipped placeholder carried a false discount flash).
+  imageUrl String?
+  images   ProductImage[]
+
+  // ── Stock ──
+  /// Units on the shelf *not yet promised to an order*. Decremented when an
+  /// order is created (online or COD) and restored when it is cancelled,
+  /// its payment fails, or it is returned — all in `order.service.ts`, all in
+  /// a transaction with a `stockQuantity >= quantity` guard, so two buyers can
+  /// never take the last unit. Zero still lists and is still searchable, just
+  /// not buyable; withdrawing a listing is `isActive`.
+  stockQuantity     Int @default(0)
+  /// At or below this the card says "كمية محدودة" and the admin dashboard
+  /// lists it under low stock.
+  lowStockThreshold Int @default(2)
+
+  /// Shipped weight in grams. Unused while shipping is flat per governorate —
+  /// kept so a weight-based courier rate (open question 5) needs no migration.
+  weightGrams Int?
+
+  isFeatured Boolean  @default(false) // shown on the landing page
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // ── Exactly one of these, matching `type` ──
+  ic         IcDetails?
+  controller ControllerDetails?
+  programmer ProgrammerDetails?
+
+  vehicles   ProductVehicle[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([type])
+  @@index([manufacturer])
+  @@index([isActive])
+  @@index([type, isActive])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String @id @default(cuid())
+  productId String
+  url       String // /api/images/products/<uuid>.<ext>
+  /// Gallery order; 0 first. The cover is `Product.imageUrl`, not position 0,
+  /// so a listing always has a cover even with an empty gallery.
+  position  Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+/// Which car models a product fits. Mostly controllers; an IC can be listed
+/// here too when it is car-specific (a pre-coded EEPROM, say).
+model ProductVehicle {
+  productId      String
+  vehicleModelId String
+  /// "CAYC", "1.6 TDI" — narrows a model to the engine the unit came from.
+  engine         String?
+
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vehicleModel VehicleModel @relation(fields: [vehicleModelId], references: [id], onDelete: Cascade)
+
+  @@id([productId, vehicleModelId])
+  @@index([vehicleModelId])
+  @@map("product_vehicles")
+}
+
+// ── IC ──────────────────────────────────────────────────────
+
+model IcDetails {
+  productId String @id
+
+  /// Manufacturer part number as printed in the datasheet —
+  /// "SAK-TC1797-512F180EF AC".
+  partNumber           String
+  /// Upper-case, spaces / dashes / dots stripped — `utils/normalize-identifier.ts`,
+  /// written by the service on every create and update. Search matches the
+  /// normalised query against this, never the printed column.
+  partNumberNormalized String
+
+  /// What is actually printed on the package, which is often *not* the part
+  /// number ("TC1797", "5P08C3", "M35080"). A technician types what they
+  /// read off the board, so every marking is a search key.
+  markings           String[]
+  markingsNormalized String[]
+
+  category IcCategory
+  /// "LQFP-176", "BGA-416", "SOIC-8"
+  package  String?
+  pinCount Int?
+
+  /// Link to the manufacturer's datasheet — an external URL, not a stored file.
+  datasheetUrl String?
+
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Controller platforms this chip is found on — "the controllers that use
+  /// this IC" on the IC page, and the reverse on the platform page.
+  platforms IcPlatform[]
+
+  @@index([partNumberNormalized])
+  @@index([markingsNormalized], type: Gin)
+  @@index([category])
+  @@map("ic_details")
+}
+
+model IcPlatform {
+  icId       String
+  platformId String
+  /// Where on the board — "main MCU", "EEPROM", "injector driver".
+  role       String?
+
+  ic       IcDetails          @relation(fields: [icId], references: [productId], onDelete: Cascade)
+  platform ControllerPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@id([icId, platformId])
+  @@index([platformId])
+  @@map("ic_platforms")
+}
+
+// ── Controller (a physical ECU unit) ───────────────────────
+
+model ControllerDetails {
+  productId  String @id
+  platformId String
+
+  /// As printed on the label — "0281 018 758", spaces and all: a technician
+  /// verifies the unit by reading the groups back. The normalised twin is
+  /// what search uses (ECU Safe Zone kept both for the same reason).
+  hardwareNumber           String
+  hardwareNumberNormalized String
+  /// Optional — not every label shows it, and a virgin unit may have none.
+  softwareNumber           String?
+  softwareNumberNormalized String?
+  /// Car-maker part number — "03L906018JJ".
+  partNumber               String?
+  partNumberNormalized     String?
+
+  condition ProductCondition
+  /// Wiped and ready to be coded to a new car — "فيرجن". A separate flag from
+  /// `condition`: a used unit can be virgin, and a new one is not always.
+  isVirgin  Boolean          @default(false)
+
+  /// Engine capacity in litres, when the listing records one.
+  litres Decimal? @db.Decimal(3, 1)
+
+  /// The unit's own serial, when each listing is one physical unit (open
+  /// question 6). Optional until that is decided.
+  serialNumber String?
+
+  product  Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Restrict: a platform with units listed against it cannot be deleted.
+  platform ControllerPlatform @relation(fields: [platformId], references: [id], onDelete: Restrict)
+
+  @@index([platformId])
+  @@index([hardwareNumberNormalized])
+  @@index([softwareNumberNormalized])
+  @@index([partNumberNormalized])
+  @@index([hardwareNumberNormalized, softwareNumberNormalized])
+  @@index([condition])
+  @@map("controller_details")
+}
+
+// ── Programmer (a tool, sold here) ─────────────────────────
+//
+// ECU Safe Zone listed programmers without selling them, as their own table.
+// Here they are sold (business-analysis open question 2, default "sold"), so
+// they become a `Product` with price and stock like everything else.
+
+model ProgrammerDetails {
+  productId String @id
+
+  /// "KESS V3", "Autotuner", "PCMflash". Unique case-insensitively, enforced
+  /// in `product.service.ts` — "Kess V3" and "KESS v3" are one tool.
+  toolName String  @unique
+  /// "Master" / "Slave" / license variant, when the tool is sold in editions.
+  edition  String?
+
+  /// Free text shown under "محتويات العلبة" — cables, adapters, license.
+  boxContents String?
+
+  product  Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supports ProgrammerSupport[]
+
+  @@map("programmer_details")
+}
+
+/// Which platforms a programmer supports, and **how**.
+///
+/// ECU Safe Zone kept OBD / Boot / Bench as three flags on the programmer.
+/// Moved to the link row here: a tool commonly reads one ECU over OBD and
+/// another only on the bench, and "which programmer reads EDC17C46 over OBD?"
+/// is the question the controller page answers. The programmer-level
+/// "supports OBD" filter is derived — any link with `obd = true`.
+model ProgrammerSupport {
+  programmerId String
+  platformId   String
+
+  obd   Boolean @default(false)
+  boot  Boolean @default(false)
+  bench Boolean @default(false)
+
+  /// "read only", "needs adapter X", "checksum auto" …
+  notes String?
+
+  programmer ProgrammerDetails  @relation(fields: [programmerId], references: [productId], onDelete: Cascade)
+  platform   ControllerPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@id([programmerId, platformId])
+  @@index([platformId])
+  @@map("programmer_supports")
+}
+
+// ----------------------------------------------------------
+// Pinouts — wiring diagrams, not stocked or shipped
+// ----------------------------------------------------------
+
+model Pinout {
+  id   String @id @default(cuid())
+  /// "EDC17C46 — الفيشة A". Not unique: two platforms each have a "main connector".
+  name String
+  slug String @unique
+
+  /// Optional — a pinout can be listed before its platform exists in the
+  /// catalog. SetNull: deleting a platform unlinks its pinouts, never deletes them.
+  platformId String?
+  /// "A", "B", "Main 94-pin" …
+  connector  String?
+
+  imageUrl String? // /api/images/pinouts/<uuid>.<ext>
+  /// Served only through GET /api/pinouts/[id]/pdf from the private bucket,
+  /// which applies `requiresSignIn`. This is the R2 key, never a public URL.
+  pdfKey   String?
+
+  /// Business-analysis open question 1. Default: signed-in users only.
+  requiresSignIn Boolean @default(true)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  platform ControllerPlatform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@index([platformId])
+  @@index([isActive])
+  @@map("pinouts")
+}
+
+// ----------------------------------------------------------
+// Cart — one per user, real quantities
+//
+// ECU Safe Zone had two carts (firmware, quantity always 1; hardware, real
+// quantity). One store, one cart.
+// ----------------------------------------------------------
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  /// Not reserved — the cart is a wish, the order is the promise. Checkout
+  /// re-validates against `stockQuantity` and refuses in Arabic if short.
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  /// Cascade here (unlike order items): deleting a never-ordered product may
+  /// simply empty it from carts.
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+// ----------------------------------------------------------
+// Orders
+//
+// One order table (ECU Safe Zone had three). The address is known *before*
+// payment here — the customer types it on our checkout page, not in Stripe's —
+// so it is captured when the order is created, not filled in by a webhook.
+// ----------------------------------------------------------
+
+model Order {
+  id String @id @default(cuid())
+
+  /// `CSZ-2026-0001` — `ORDER_NUMBER_PREFIX` in src/constants/order-status.ts.
+  orderNumber String @unique
+
+  userId        String
+  status        OrderStatus
+  paymentMethod PaymentMethod
+
+  // ── Money, captured at creation ──
+  subtotal    Decimal @db.Decimal(10, 2) // Σ unitPrice × quantity
+  shippingFee Decimal @db.Decimal(10, 2) // from the zone, at the time
+  codFee      Decimal @default(0) @db.Decimal(10, 2) // 0 unless COD carries a fee
+  total       Decimal @db.Decimal(10, 2) // stored, not computed — the receipt must not drift
+
+  // ── Destination ──
+  /// Kept as a relation (not only in the snapshot) because orders *are*
+  /// filtered and counted by governorate — COD risk, courier batches, reports.
+  shippingZoneId  String
+  /// The full address as it was at checkout — recipient, phone, city, street,
+  /// landmark, and the governorate's Arabic name. Json, typed at the boundary
+  /// as `OrderAddress` (src/types/order.ts): a later edit to the saved
+  /// `Address` must never rewrite where a past order went.
+  shippingAddress Json
+  /// Copied out of the snapshot because support searches orders by phone.
+  customerPhone   String
+
+  customerNotes String?
+  /// Internal only — never shown to the customer.
+  adminNotes    String?
+
+  // ── Fulfilment ──
+  carrier        String? // "Bosta", "Aramex" …
+  trackingNumber String?
+
+  confirmedAt  DateTime? // COD: when the admin confirmed by phone; online: when paid
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  shippingZone ShippingZone @relation(fields: [shippingZoneId], references: [id], onDelete: Restrict)
+  items        OrderItem[]
+  payments     Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([shippingZoneId])
+  @@index([customerPhone])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+
+  /// Captured — the product can be renamed, re-priced or withdrawn later, and
+  /// the order is a receipt, not a live view of the catalog.
+  productName       String
+  productType       ProductType
+  /// The main identifier at the time — part number / hardware number / tool
+  /// name — so the packing slip reads correctly without a join.
+  productIdentifier String?
+
+  unitPrice Decimal @db.Decimal(10, 2)
+  quantity  Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Restrict: a product that appears in order history cannot be deleted —
+  /// `product.service.ts` counts order items first and refuses in words.
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+/// One row per payment *attempt*. Back to a real `Payment` table (ECU Safe
+/// Zone had to put Stripe ids on `OnlineOrder` / `HardwareOrder` because
+/// `Payment.orderId` was unique against the firmware `Order`). With one order
+/// table there is no such conflict, and many-per-order is the honest shape: a
+/// card declined, then paid by wallet, is two attempts on one order.
+///
+/// A COD order gets one row with provider "cod", marked SUCCESS when the
+/// courier's cash is reconciled.
+model Payment {
+  id      String @id @default(cuid())
+  orderId String
+
+  provider String // "paymob" | "cod"
+  method   PaymentMethod
+  status   PaymentStatus @default(PENDING)
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("EGP")
+
+  /// Paymob's order / intention id — created when checkout starts.
+  providerOrderId String?
+  /// Paymob's transaction id — arrives on the HMAC-verified webhook. Unique so
+  /// a replayed webhook can never mark an order paid twice.
+  transactionId   String? @unique
+  /// The verified webhook body, for disputes and debugging. Never trusted for
+  /// anything the HMAC did not cover.
+  rawPayload      Json?
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([providerOrderId])
+  @@index([status])
+  @@map("payments")
+}
