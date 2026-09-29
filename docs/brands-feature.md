@@ -41,7 +41,7 @@ Prisma → brands
 | Service | `services/brand.service.ts` | `list`, `getById`, `create`, `update`, `remove`, `uploadLogo` |
 | Repository | `repositories/brand.repository.ts` | The only Prisma access. `detailSelect` / `listSelect` (with `_count.models`) |
 | Types | `types/brand.ts` | `BrandListItem`, `BrandDetail`: DTOs, never raw rows |
-| Strings | `messages/ar.ts` → `brands` | list, form, dropzone, delete, toasts, errors, validation |
+| Strings | `messages/ar.ts` → `brands` | list, form, delete, toasts, errors, validation. The dropzone strings are the shared `ar.dropzone` |
 
 ### Shared plumbing introduced here (reuse it)
 
@@ -113,7 +113,7 @@ A logo uploaded and then abandoned (the form is cancelled) stays in R2 as an orp
 
 ## Copying this for another CRUD
 
-Done once already: [`controller-platforms-feature.md`](./controller-platforms-feature.md).
+Done three times already: [`controller-platforms-feature.md`](./controller-platforms-feature.md), [`ics-admin-feature.md`](./ics-admin-feature.md) and [`programmers-admin-feature.md`](./programmers-admin-feature.md). **For a sold type** (a `Product` plus its detail row), start from the shared product layer described in the programmers doc instead of this file alone.
 
 1. `schemas/<entity>.schema.ts`: Zod with Arabic messages.
 2. `repositories/<entity>.repository.ts`: selects, CRUD.

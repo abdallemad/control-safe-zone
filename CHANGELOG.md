@@ -5,6 +5,182 @@ Notable changes to Control Safe Zone, newest first. Milestones refer to
 
 ---
 
+## 2026-09-29 — Programmers CRUD and the shared product layer (M2)
+
+**الهاردوير › المبرمجات** gets the same admin treatment as ICs. The
+placeholder is replaced by a list plus create, edit and delete, with create
+and edit as full pages and the cover on R2. It also adds the
+**compatibility editor**: which controller platforms a tool reads, over
+OBD, Boot or Bench.
+
+Programmers are the second sold type, so what they share with ICs moved into
+`product.*` files instead of being copied. The IC CRUD now runs on them,
+re-verified. Full reference:
+[docs/programmers-admin-feature.md](docs/programmers-admin-feature.md).
+
+### Added
+
+- **Pages**:
+  - `/admin/hardware/programmers`: the list, prefetched and hydrated. It shows the cover, tool name, edition badge, Arabic name, maker, price with a real compare-at, stock, the derived **support-mode badges** (OBD · Boot · Bench), platform count and status. It has normalised search, a **mode filter**, a row menu, and loading, empty, error and no-results states.
+  - `/admin/hardware/programmers/new` and `/[id]/edit`: full-page forms that prefetch the platforms. Every page calls `requireAdmin()`.
+- **Layers**:
+  - `schemas/programmer.schema.ts`: each support row needs **at least one mode ticked**.
+  - `repositories/programmer.repository.ts`: scoped to `type: "PROGRAMMER"`.
+  - `services/programmer.service.ts`, with these rules:
+    - **tool names are unique regardless of case**, checked up front and on `P2002` ("kess v3" = "KESS V3");
+    - supports are replaced on update;
+    - the list's `modes` are derived from the support rows.
+  - `actions/programmer/*`, `hooks/use-programmers.ts` (which also invalidates the platforms list) and `types/programmer.ts`.
+- **Components**:
+  - `components/admin/programmers/*`: view, editor, delete dialog.
+  - `components/forms/programmer-form.tsx`:
+    - tool, maker (with suggestions), edition and box contents;
+    - the slug fills from maker + tool + edition;
+    - support rows with a platform picker, OBD / Boot / Bench checkboxes and notes.
+- **Shared product layer**, used by ICs and programmers, and next by controllers:
+  - `schemas/product.schema.ts`: the listing fields and cross-field rules.
+  - `repositories/product.repository.ts`.
+  - `services/product.service.ts`: listing columns, money as strings, Prisma error wording, platform checks, cover cleanup, and the order-history delete rule.
+  - `components/forms/product-listing-fields.tsx`: the image, pricing and visibility cards, `MoneyInput`, `PlatformSelect` and `NoPlatformRows`.
+  - `components/admin/products/product-image.tsx` and `stock-cell.tsx`.
+- **Constants**: `PROGRAMMER_MODES` and `PROGRAMMER_MODE_META`.
+- **Strings**: `ar.programmers`, plus the shared `ar.products`.
+- **Docs**: `docs/programmers-admin-feature.md`.
+
+### Changed
+
+- **ICs moved onto the shared layer**, with the same behaviour:
+  - `ic.schema.ts` spreads `productListingShape`;
+  - `ic.service.ts` and `ic.repository.ts` keep only the chip-specific parts;
+  - `ic-form.tsx` uses the shared cards;
+  - `ics-view.tsx` uses `ProductImage` and `StockCell`, and `ic-image.tsx` is removed.
+- **Strings**: the IC listing labels, validation and errors that both types share moved from `ar.ics` to `ar.products`. `ar.ics` keeps the chip fields and the IC wording.
+- **Docs**:
+  - `ics-admin-feature.md`: files and the shared layer.
+  - `admin-dashboard.md`: programmers marked as built.
+  - `folder-structure.md`: ticks the new doc and marks the new files.
+  - `brands-feature.md`: copy checklist.
+  - `product-images.md` and `design-system.md`.
+
+### Fixed
+
+- **The order-history delete message counted order lines, not orders.** One order holding a product twice said "موجود في 2 طلب". Both the refusal (`countOrders`) and the list's `ordersCount` (`productOrdersSelect`) now count distinct orders. This affected ICs too.
+
+### Notes
+
+- **Verified against the dev DB**, using a temporary route since deleted:
+  - programmer create, update and delete;
+  - case-insensitive tool name, duplicate slug and unknown platform;
+  - derived modes, and the platforms' programmer counts;
+  - scoping by type, both ways;
+  - the order block, with distinct orders;
+  - six schema refusals;
+  - an **IC regression** through the shared layer.
+
+  The run confirmed no test rows were left.
+- **Verified in the browser**, on temporary pages since deleted:
+  - the list, search, and the blocked delete dialog;
+  - form auto-slug, support rows, and the mode-required and compare-at errors;
+  - the "admins only" refusal;
+  - the IC form on the shared cards;
+  - 375px layout.
+
+  All programmer routes redirect to sign-in when signed out.
+- **Not exercised**:
+  - the signed-in admin flow;
+  - a real image upload;
+  - opening the platform picker and mode-filter dropdowns on the programmer pages. The browser pane was hidden, so popups couldn't open. They are the same `Select` components exercised on the IC pages.
+- **One listing per tool**: `ProgrammerDetails.toolName` is unique, so Master and Slave editions can't be separate listings until that index changes.
+
+---
+
+## 2026-09-29 — ICs CRUD (M2)
+
+**الهاردوير › الآي سيهات** gets the same admin treatment as brands. The
+placeholder is replaced by a list plus create, edit and delete, with create
+and edit as full pages. The cover image goes to R2 and each IC can be linked
+to controller platforms. It is the first sold type: an IC is a `Product`
+plus its `IcDetails` row and `IcPlatform` links, all written together. Full
+reference: [docs/ics-admin-feature.md](docs/ics-admin-feature.md).
+
+### Added
+
+- **Pages**:
+  - `/admin/hardware/ics`: the list, prefetched and hydrated. It shows the cover, part number, name, markings, category and maker, price with a real compare-at, stock badge and count, platform count and status. It has normalised search, a category filter, a row menu, and loading, empty, error and no-results states.
+  - `/admin/hardware/ics/new` and `/admin/hardware/ics/[id]/edit`: full-page forms. Both prefetch the platforms for the picker. Every page calls `requireAdmin()`.
+- **Layers**:
+  - `schemas/ic.schema.ts`:
+    - money is a string (`^\d{1,8}(\.\d{1,2})?$`) end to end, so it never goes through a float;
+    - the compare-at price must be higher than the price;
+    - markings and platforms can't repeat;
+    - the datasheet link must be `http(s)`.
+  - `repositories/ic.repository.ts`: every query scoped to `type: "IC"`.
+  - `services/ic.service.ts`, with these rules:
+    - one nested write for `Product` + `IcDetails` + platform links;
+    - **`partNumberNormalized` and `markingsNormalized` are written on every save**;
+    - platform links are replaced on update;
+    - an unknown platform or a duplicate slug returns an error on that field;
+    - a replaced cover is deleted from R2;
+    - **delete is refused while any order line references the IC**; otherwise the cover and gallery files leave R2 too.
+  - `actions/ic/*`: list, create, update, delete and upload-image.
+  - `hooks/use-ics.ts`: mutations also invalidate the platforms list, whose IC counts change.
+  - `types/ic.ts`.
+- **Components**:
+  - `components/admin/ics/*`: view, editor, delete dialog, `IcImage`.
+  - `components/forms/ic-form.tsx`:
+    - the slug fills from maker + part number, with a live `/ics/…` preview;
+    - maker suggestions;
+    - a category `Select`;
+    - platform rows through `useFieldArray`;
+    - `MoneyInput` with the "ج.م" suffix.
+  - `components/forms/tag-input.tsx`, **reusable**: a `string[]` edited as chips. Enter or a comma adds one, a pasted list adds all of them, duplicates are dropped by a caller-supplied normal form, and Backspace removes the last.
+- **Shared**:
+  - `constants/product-types.ts`: `IC_CATEGORIES`, kept in sync with the Prisma enum by `satisfies`. Also `IC_CATEGORY_META` (Arabic labels) and `STOCK_STATE_META` (design-system stock tones).
+  - `utils/stock-state.ts`: `stockState(qty, threshold)`.
+- **Strings**: `ar.ics`, `ar.stock`, and `ar.dropzone`, which is now shared by every image picker.
+- **Docs**: `docs/ics-admin-feature.md`.
+
+### Changed
+
+- **The dropzone strings** moved from `ar.brands.dropzone` to `ar.dropzone`, and `brand-form.tsx` reads them from there. There's no visible change.
+- **Docs**:
+  - `admin-dashboard.md`: ICs marked as built.
+  - `folder-structure.md`: ticks the new doc and marks the new files as built.
+  - `brands-feature.md`: the copy checklist lists ICs, and the strings row points at `ar.dropzone`.
+  - `product-images.md`: `Product.imageUrl` is live.
+  - `design-system.md`: the stock tones are implemented, and the chip-input pattern is added.
+
+### Notes
+
+- **Verified against the dev DB**, using a temporary route since deleted:
+  - create, with markings de-duplicated and both normalised columns checked;
+  - duplicate slug;
+  - unknown platform, with nothing written;
+  - update, including replacing the links;
+  - list counts;
+  - a non-IC id returns not-found;
+  - delete blocked by an order line, then allowed;
+  - delete twice returns not-found;
+  - nine schema refusals.
+
+  All test rows were removed.
+- **Verified in the browser**, on temporary pages since deleted:
+  - the list's three stock states;
+  - normalised marking search and the category filter;
+  - the blocked delete dialog;
+  - auto-slug and the chip input;
+  - field and compare-at errors;
+  - a platform row;
+  - the "admins only" refusal on submit;
+  - 375px layout.
+
+  All three routes redirect to sign-in when signed out.
+- **Not exercised**: the flow as a signed-in admin (needs a Clerk account), and a real IC image upload. The upload uses the same storage path as brand logos.
+- **Not in this CRUD**: gallery images, compatible vehicles and `weightGrams`.
+- **Part numbers are not unique**, as in the schema. Two listings of one part are allowed.
+
+---
+
 ## 2026-09-28 — Controller platforms CRUD (M1)
 
 **منصات الكنترول** gets the same admin treatment as brands: a list plus
