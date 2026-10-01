@@ -5,6 +5,80 @@ Notable changes to Control Safe Zone, newest first. Milestones refer to
 
 ---
 
+## 2026-09-30 — Controllers CRUD (M2)
+
+**الهاردوير › الكنترولات** gets the same admin treatment as ICs and
+programmers. The placeholder is replaced by a list plus create, edit and
+delete, with create and edit as full pages and the cover on R2. A controller
+is the third sold type: a `Product` plus its `ControllerDetails` row (one
+platform, the label's numbers, condition and the فيرجن flag), written
+together on the shared product layer. Full reference:
+[docs/controllers-admin-feature.md](docs/controllers-admin-feature.md).
+
+### Added
+
+- **Pages**:
+  - `/admin/hardware/controllers`: the list, prefetched and hydrated. It shows the cover, the hardware number with the software number and Arabic name beneath, the platform, the **condition** and **فيرجن** badges, price with a real compare-at, stock and status. It has normalised search, a **condition filter**, a row menu, and loading, empty, error and no-results states.
+  - `/admin/hardware/controllers/new` and `/[id]/edit`: full-page forms that prefetch the platforms. Every page calls `requireAdmin()`.
+- **Layers**:
+  - `schemas/controller.schema.ts`: a required platform, the hardware number (2–60), optional software / part / serial numbers, a required condition, and litres kept as a string matching `Decimal(3, 1)`.
+  - `repositories/controller.repository.ts`: scoped to `type: "CONTROLLER"`, the list selecting the unit's platform.
+  - `services/controller.service.ts`, with these rules:
+    - **`hardwareNumberNormalized`, `softwareNumberNormalized` and `partNumberNormalized` are written on every save** (`null` when the number is empty);
+    - an unknown platform is an error on the **`platformId`** field;
+    - update can move the unit to another platform;
+    - the delete is refused by order history, as for every sold type.
+  - `actions/controller/*`, `hooks/use-controllers.ts` (which also invalidates the platforms list) and `types/controller.ts`.
+  - `queryKeys.controllers`.
+- **Components**:
+  - `components/admin/controllers/*`: view, editor, delete dialog.
+  - `components/forms/controller-form.tsx`:
+    - the platform picker, which fills the manufacturer when it is empty;
+    - hardware, software, part and serial numbers, condition, litres and the فيرجن switch;
+    - the slug fills from platform + hardware + software number, with a live `/controllers/…` preview.
+- **Constants**: `CONTROLLER_CONDITIONS`, `CONDITION_META` and `VIRGIN_META`, with the design-system tones.
+- **Strings**: `ar.controllers`.
+- **Docs**: `docs/controllers-admin-feature.md`.
+
+### Changed
+
+- **Shared product layer**, backwards-compatible:
+  - `productService.assertPlatformsExist` and `productService.rethrow` take an optional form field for the "platform no longer exists" error. ICs and programmers keep `platforms`; controllers use `platformId`.
+  - `refineProductListing` accepts a value without `platforms`.
+- **Docs**:
+  - `admin-dashboard.md`: controllers marked as built.
+  - `folder-structure.md`: ticks the new doc and marks the new files.
+  - `programmers-admin-feature.md`: the shared layer notes controllers and the new parameters.
+  - `brands-feature.md`: copy checklist.
+  - `product-images.md` and `design-system.md` (condition tones implemented).
+
+### Notes
+
+- **Verified against the dev DB**, using a temporary route since deleted:
+  - create, with the three normalised twins checked in the database;
+  - duplicate slug, and an unknown platform on `platformId` with nothing written;
+  - update moving platforms and clearing the optional numbers;
+  - the platform's delete refused while the unit sits on it;
+  - the order block, counting distinct orders, then delete, then not found;
+  - eight schema refusals;
+  - an **IC regression** through the changed shared helpers, and type scoping both ways.
+
+  The run confirmed no test rows were left.
+- **Verified in the browser**, on a temporary page since deleted:
+  - the list's condition, فيرجن and stock badges, and normalised search;
+  - the form's auto-slug, the required-field and litres errors, and the edit form pre-filled;
+  - the compare-at error and the "admins only" refusal;
+  - 375px layout.
+
+  All controller routes redirect to sign-in when signed out.
+- **Not exercised**:
+  - the signed-in admin flow;
+  - a real image upload;
+  - opening the platform and condition pickers, the condition filter and the row menu. The browser pane was hidden, so popups couldn't open. They are the same components exercised on the IC pages.
+- **No uniqueness on hardware / software / serial numbers**: open question 6 (one listing per unit, or per number with stock) is still open.
+
+---
+
 ## 2026-09-29 — Programmers CRUD and the shared product layer (M2)
 
 **الهاردوير › المبرمجات** gets the same admin treatment as ICs. The

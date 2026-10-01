@@ -8,11 +8,12 @@ import { productRepository } from "@/repositories/product.repository"
 import type { ProductListingInput } from "@/schemas/product.schema"
 import { storageService } from "@/services/storage.service"
 
-// The rules every sold type shares (ICs, programmers…): how the listing
-// columns are written, money leaving as strings, platform links checked,
-// Prisma errors worded, and the delete refused by order history. Each type's
-// service (ic.service.ts, programmer.service.ts) adds its detail row and
-// calls these — docs/programmers-admin-feature.md "Shared product layer".
+// The rules every sold type shares (ICs, programmers, controllers): how the
+// listing columns are written, money leaving as strings, platform links
+// checked, Prisma errors worded, and the delete refused by order history.
+// Each type's service (ic.service.ts, programmer.service.ts,
+// controller.service.ts) adds its detail row and calls these —
+// docs/programmers-admin-feature.md "Shared product layer".
 
 const t = ar.products.errors
 
@@ -42,10 +43,14 @@ function serializeMoney(row: { price: Prisma.Decimal; compareAtPrice: Prisma.Dec
   return { price: row.price.toString(), compareAtPrice: row.compareAtPrice?.toString() ?? null }
 }
 
-/** Every linked platform must exist — the form's list may be stale. */
-async function assertPlatformsExist(ids: string[]) {
+/**
+ * Every linked platform must exist — the form's list may be stale. The error
+ * lands on `field`: the link rows (`platforms`), or a controller's single
+ * `platformId`.
+ */
+async function assertPlatformsExist(ids: string[], field = "platforms") {
   if (ids.length && (await productRepository.countPlatforms(ids)) !== ids.length) {
-    throw new ServiceError(t.platformMissing, { platforms: t.platformMissing })
+    throw new ServiceError(t.platformMissing, { [field]: t.platformMissing })
   }
 }
 
@@ -54,12 +59,12 @@ async function assertPlatformsExist(ids: string[]) {
  * field. A type service handles its own unique columns first (a
  * programmer's toolName) and hands the rest here.
  */
-function rethrow(error: unknown, notFound: string): never {
+function rethrow(error: unknown, notFound: string, platformField = "platforms"): never {
   // `slug` is the only other unique column the forms write.
   if (isPrismaError(error, "P2002")) throw new ServiceError(t.slugTaken, { slug: t.slugTaken })
   // A connected platform that vanished between the check and the write.
   if (isPrismaError(error, "P2018") || isPrismaError(error, "P2003")) {
-    throw new ServiceError(t.platformMissing, { platforms: t.platformMissing })
+    throw new ServiceError(t.platformMissing, { [platformField]: t.platformMissing })
   }
   if (isPrismaError(error, "P2025")) throw new ServiceError(notFound)
   throw error

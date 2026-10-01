@@ -1,10 +1,10 @@
 # Images on R2
 
-Every uploaded image (brand logos, IC and programmer covers today; controller photos and pinout previews next) lives in a **private Cloudflare R2 bucket** and is served by **our own route**, `GET /api/images/<key>`. The database stores the **path string**, never a bucket URL:
+Every uploaded image (brand logos, IC, programmer and controller covers today; pinout previews next) lives in a **private Cloudflare R2 bucket** and is served by **our own route**, `GET /api/images/<key>`. The database stores the **path string**, never a bucket URL:
 
 ```text
 Brand.logoUrl    = "/api/images/brands/3f0c…-….png"
-Product.imageUrl = "/api/images/products/<uuid>.<ext>"      (ICs, programmers — productService.uploadImage)
+Product.imageUrl = "/api/images/products/<uuid>.<ext>"      (ICs, programmers, controllers — productService.uploadImage)
 Pinout.imageUrl  = "/api/images/pinouts/<uuid>.<ext>"       (planned)
 ```
 

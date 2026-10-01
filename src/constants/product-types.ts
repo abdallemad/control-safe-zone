@@ -1,10 +1,10 @@
 import type { StatusTone } from "@/components/shared/status-badge"
-import type { IcCategory } from "@/generated/prisma"
+import type { IcCategory, ProductCondition } from "@/generated/prisma"
 import { ar } from "@/messages/ar"
 
 // Product registries (docs/folder-structure.md "constants/"). Only what the
-// admin IC and programmer CRUDs need today; PRODUCT_TYPE_META (label, route, fields and icon
-// per ProductType) arrives with the storefront.
+// admin IC, programmer and controller CRUDs need today; PRODUCT_TYPE_META
+// (label, route, fields and icon per ProductType) arrives with the storefront.
 
 /**
  * The `IcCategory` enum's values, for Zod and selects. Kept here — not read
@@ -35,6 +35,22 @@ export const PROGRAMMER_MODE_META: Record<ProgrammerMode, { label: string }> = {
   boot: { label: ar.programmers.modes.boot },
   bench: { label: ar.programmers.modes.bench },
 }
+
+/**
+ * The `ProductCondition` enum's values, in display order — same `satisfies`
+ * guard as IC_CATEGORIES.
+ */
+export const CONTROLLER_CONDITIONS = ["NEW", "USED", "REFURBISHED"] as const satisfies readonly ProductCondition[]
+
+/** Condition badge per value — docs/design-system.md "Status tones". */
+export const CONDITION_META: Record<ProductCondition, { label: string; tone: StatusTone }> = {
+  NEW: { label: ar.controllers.conditions.NEW, tone: "info" },
+  USED: { label: ar.controllers.conditions.USED, tone: "neutral" },
+  REFURBISHED: { label: ar.controllers.conditions.REFURBISHED, tone: "success" },
+}
+
+/** The virgin flag's badge — shown *in addition* to the condition. */
+export const VIRGIN_META: { label: string; tone: StatusTone } = { label: ar.controllers.virgin, tone: "brand" }
 
 export type StockState = "inStock" | "low" | "out"
 
