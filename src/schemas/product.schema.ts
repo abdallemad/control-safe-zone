@@ -60,16 +60,17 @@ export const platformLinks = <T extends z.ZodRawShape>(row: z.ZodObject<T>) => r
 /**
  * Cross-field rules of the listing: the compare-at price must be higher than
  * the price, and no platform may be linked twice. Zod runs a superRefine only
- * once every field's own type is valid.
+ * once every field's own type is valid. A type with one platform and no link
+ * rows (a controller) has no `platforms`.
  */
 export function refineProductListing(
-  value: Pick<ProductListingInput, "price" | "compareAtPrice"> & { platforms: { platformId: string }[] },
+  value: Pick<ProductListingInput, "price" | "compareAtPrice"> & { platforms?: { platformId: string }[] },
   ctx: z.RefinementCtx
 ) {
   if (value.compareAtPrice !== "" && Number(value.compareAtPrice) <= Number(value.price)) {
     ctx.addIssue({ code: "custom", path: ["compareAtPrice"], message: t.compareAtPrice })
   }
-  const ids = value.platforms.map((p) => p.platformId).filter(Boolean)
+  const ids = (value.platforms ?? []).map((p) => p.platformId).filter(Boolean)
   if (new Set(ids).size !== ids.length) {
     ctx.addIssue({ code: "custom", path: ["platforms"], message: t.platformDuplicate })
   }

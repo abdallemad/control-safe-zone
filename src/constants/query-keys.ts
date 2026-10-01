@@ -22,4 +22,8 @@ export const queryKeys = {
     all: ["programmers"] as const,
     list: () => ["programmers", "list"] as const,
   },
+  controllers: {
+    all: ["controllers"] as const,
+    list: () => ["controllers", "list"] as const,
+  },
 }

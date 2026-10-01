@@ -168,7 +168,7 @@ Sizes add **`xl`** (h-11, `text-base`), the mobile CTA for "أضف إلى الس
 | `≤ lowStockThreshold` | كمية محدودة | `warning` |
 | `0` | نفد المخزون | `neutral` (still listed and searchable, not buyable) |
 
-**`ProductCondition`** + `isVirgin`
+**`ProductCondition`** + `isVirgin`. Implemented: labels and tones in `CONDITION_META` and `VIRGIN_META` (`constants/product-types.ts`), used by the admin controllers table
 
 | Value | Label | Tone |
 |---|---|---|

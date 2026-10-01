@@ -38,13 +38,13 @@ Product (type PROGRAMMER)   listing: name, slug, manufacturer, price, stock, cov
 
 ## Shared product layer
 
-ICs were the first sold type and programmers are the second. Instead of a second copy, what they share now lives in `product.*` files. The IC CRUD was moved onto them, with the same behaviour, re-verified. **Controllers should use them too.**
+ICs were the first sold type and programmers are the second. Instead of a second copy, what they share now lives in `product.*` files. The IC CRUD was moved onto them, with the same behaviour, re-verified. **Controllers use them too** ([`controllers-admin-feature.md`](./controllers-admin-feature.md)), which added the optional platform-field parameter to `assertPlatformsExist` / `rethrow`.
 
 | File | Gives every sold type |
 |---|---|
-| `schemas/product.schema.ts` | `productListingShape`: manufacturer, name, slug, description, imageUrl, price, compareAtPrice, stock, threshold and flags, with Arabic messages from `ar.products.validation`. Each type spreads it into its `z.object`. Also `refineProductListing` (compare-at must be higher than the price, and no platform twice), `platformIdField`, `platformLinks(row)` (≤ 50 rows), `wholeNumber()` and `productIdSchema` |
+| `schemas/product.schema.ts` | `productListingShape`: manufacturer, name, slug, description, imageUrl, price, compareAtPrice, stock, threshold and flags, with Arabic messages from `ar.products.validation`. Each type spreads it into its `z.object`. Also `refineProductListing` (compare-at must be higher than the price, and no platform twice; `platforms` is optional, for controllers), `platformIdField`, `platformLinks(row)` (≤ 50 rows), `wholeNumber()` and `productIdSchema` |
 | `repositories/product.repository.ts` | `productListingSelect` (the listing columns), `productOrdersSelect` (the list's distinct orders), `findImageUrls(id, type)`, `countOrders(id)`, `countPlatforms(ids)`, `delete(id)` |
-| `services/product.service.ts` | `toListingData(input)` (form → `Product` columns; money stays a string), `serializeMoney(row)` (Decimal → string), `assertPlatformsExist(ids)`, `rethrow(error, notFound)` (`P2002` slug, `P2018`/`P2003` platform, `P2025` not found), `cleanUpReplacedImage(old, new)`, `remove(id, type, messages)` (the order-history rule and R2 cleanup), `uploadImage(file)` |
+| `services/product.service.ts` | `toListingData(input)` (form → `Product` columns; money stays a string), `serializeMoney(row)` (Decimal → string), `assertPlatformsExist(ids, field?)`, `rethrow(error, notFound, platformField?)` (`P2002` slug, `P2018`/`P2003` platform — on `platforms` unless a field is given, `P2025` not found), `cleanUpReplacedImage(old, new)`, `remove(id, type, messages)` (the order-history rule and R2 cleanup), `uploadImage(file)` |
 | `components/forms/product-listing-fields.tsx` | `ProductImageCard`, `ProductPricingCard` (with `MoneyInput`), `ProductVisibilityCard`, `PlatformSelect`, `NoPlatformRows`, `toNumber` / `toOptionalNumber`. The cards are generic over the form (`T extends ProductListingInput`) and touch only the shared fields |
 | `components/admin/products/product-image.tsx` | `ProductImage`: the cover on a white tile, or the type's glyph (`Cpu`, `Usb`). It replaces `IcImage` |
 | `components/admin/products/stock-cell.tsx` | `StockCell`: the stock badge plus the unit count |
