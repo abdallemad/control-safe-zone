@@ -8,10 +8,11 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // Image uploads go through Server Actions. Images are capped at 2 MB
-      // (IMAGE_MAX_BYTES in constants/images.ts); the extra room
-      // covers multipart overhead.
-      bodySizeLimit: "3mb",
+      // Uploads go through Server Actions. Images are capped at 2 MB
+      // (IMAGE_MAX_BYTES in constants/images.ts) and pinout PDFs at 10 MB
+      // (PDF_MAX_BYTES in constants/pdf.ts); the extra room covers
+      // multipart overhead. The services re-check each file's own cap.
+      bodySizeLimit: "11mb",
     },
   },
 };

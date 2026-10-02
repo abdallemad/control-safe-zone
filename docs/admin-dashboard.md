@@ -1,6 +1,6 @@
 # Admin Dashboard
 
-The `/admin` console: an Arabic, RTL shell with a **sidebar on the right**, a header with breadcrumbs, and one route per admin section. **Brands, platforms, ICs, programmers and controllers are built; the other sections are still placeholders.** The shell is final; each page's body is replaced when its feature is built (milestones M1–M7 in [`business-analysis.md`](./business-analysis.md#milestones)).
+The `/admin` console: an Arabic, RTL shell with a **sidebar on the right**, a header with breadcrumbs, and one route per admin section. **Brands, platforms, ICs, programmers, controllers and pinouts are built; the other sections are still placeholders.** The shell is final; each page's body is replaced when its feature is built (milestones M1–M7 in [`business-analysis.md`](./business-analysis.md#milestones)).
 
 Access is covered in [`auth-feature.md`](./auth-feature.md): every page calls `authService.requireAdmin()`.
 
@@ -15,7 +15,7 @@ Access is covered in [`auth-feature.md`](./auth-feature.md): every page calls `a
 | `/admin` | لوحة التحكم | نظرة عامة | M7 (figures) | Welcome + four empty stat cards |
 | `/admin/hardware/programmers` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › المبرمجات | الكتالوج | M2 | **Built** — list, create, edit, delete, cover on R2, supported platforms with OBD / Boot / Bench ([`programmers-admin-feature.md`](./programmers-admin-feature.md)) |
 | `/admin/hardware/controllers` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › الكنترولات | الكتالوج | M2 | **Built** — list, create, edit, delete, cover on R2, platform, hardware / software numbers, condition + فيرجن ([`controllers-admin-feature.md`](./controllers-admin-feature.md)) |
-| `/admin/hardware/pinouts` | الكتالوج › الهاردوير › البن أوت | الكتالوج | M2 | Placeholder |
+| `/admin/hardware/pinouts` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › البن أوت | الكتالوج | M2 | **Built** — list, create, edit, delete, preview image on R2, private PDF behind `/api/pinouts/[id]/pdf`, optional platform, download access ([`pinouts-admin-feature.md`](./pinouts-admin-feature.md)) |
 | `/admin/hardware/ics` (+ `/new`, `/[id]/edit`) | الكتالوج › الهاردوير › الآي سيهات | الكتالوج | M2 | **Built** — list, create, edit, delete, cover on R2, platform links ([`ics-admin-feature.md`](./ics-admin-feature.md)) |
 | `/admin/brands` (+ `/new`, `/[id]/edit`) | الماركات | البيانات المرجعية | M1 | **Built** — list, create, edit, delete, logo on R2 ([`brands-feature.md`](./brands-feature.md)) |
 | `/admin/platforms` (+ `/new`, `/[id]/edit`) | منصات الكنترول | البيانات المرجعية | M1 | **Built** — list, create, edit, delete ([`controller-platforms-feature.md`](./controller-platforms-feature.md)) |

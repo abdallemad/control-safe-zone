@@ -17,7 +17,7 @@ The two documents that exist today are the **M0 milestone**. Every other documen
 - [ ] `ics-feature.md` — `/ics`, the IC catalog: part numbers, markings, packages
 - [ ] `controllers-feature.md` — `/controllers`, ECU units: hardware/software numbers, condition, virgin flag
 - [ ] `programmers-feature.md` — `/programmers`: many-to-many with controller platforms, OBD / Boot / Bench
-- [ ] `pinouts-feature.md` — `/pinouts`: image + PDF, the PDF served from the private bucket
+- [ ] `pinouts-feature.md` — `/pinouts`: the storefront catalog and download button *(the admin CRUD and the PDF route are in `pinouts-admin-feature.md`)*
 - [ ] `search-feature.md` — `/search`: identifier normalisation, one search across all categories
 - [ ] `cart-feature.md` — `/cart`: real per-line quantity, stock-validated
 - [ ] `checkout-feature.md` — Egyptian address, governorate shipping fee, stock reservation, order creation
@@ -31,6 +31,7 @@ The two documents that exist today are the **M0 milestone**. Every other documen
 - [x] [`brands-feature.md`](./brands-feature.md) — the reference CRUD feature, layer by layer (every other CRUD copies it): admin list / create / edit / delete, logo on R2
 - [x] [`controller-platforms-feature.md`](./controller-platforms-feature.md) — Bosch EDC17C46, MED17.5, SIMOS… the reference data every category links to: admin CRUD, delete blocked by any link
 - [x] [`controllers-admin-feature.md`](./controllers-admin-feature.md) — the admin controller CRUD: one platform per unit, hardware / software / part numbers with normalised twins, condition + فيرجن, on the shared product layer
+- [x] [`pinouts-admin-feature.md`](./pinouts-admin-feature.md) — the admin pinout CRUD: preview image on R2, PDF in the private bucket behind `GET /api/pinouts/[id]/pdf` (signed-in / inactive rules), optional platform; not a `Product`
 - [x] [`programmers-admin-feature.md`](./programmers-admin-feature.md) — the admin programmer CRUD with the OBD / Boot / Bench compatibility editor, and the **shared product layer** (`product.*`) every sold type builds on
 - [x] [`ics-admin-feature.md`](./ics-admin-feature.md) — the admin IC CRUD, the first sold type: `Product` + `IcDetails` + platform links in one write, normalised part number / markings, cover on R2, delete blocked by order history
 - [x] [`product-images.md`](./product-images.md) — images on R2 through `/api/images/[...key]`: keys, upload rules (magic bytes, 2 MB, no SVG), the public route, config
@@ -174,7 +175,7 @@ app/
 │       ├── hardware/         #   الهاردوير (a sidebar folder) — page.tsx redirects to programmers
 │       │   ├── programmers/  #   ✓ list · new/ · [id]/edit/ — المبرمجات — programmers-admin-feature.md
 │       │   ├── controllers/  #   ✓ list · new/ · [id]/edit/ — الكنترولات — controllers-admin-feature.md
-│       │   ├── pinouts/      #   ✓ placeholder — البن أوت
+│       │   ├── pinouts/      #   ✓ list · new/ · [id]/edit/ — البن أوت — pinouts-admin-feature.md
 │       │   └── ics/          #   ✓ list · new/ · [id]/edit/ — الآي سيهات — ics-admin-feature.md
 │       ├── brands/           #   ✓ list · new/ · [id]/edit/ — brands-feature.md
 │       ├── platforms/        #   ✓ list · new/ · [id]/edit/ — controller-platforms-feature.md
@@ -186,7 +187,7 @@ app/
 ├── api/
 │   ├── webhooks/payment/     #   POST — payments-feature.md
 │   ├── images/[...key]/      #   ✓ GET  — product-images.md
-│   └── pinouts/[id]/pdf/     #   GET  — pinouts-feature.md
+│   └── pinouts/[id]/pdf/     #   ✓ GET  — pinouts-admin-feature.md
 │
 ├── (auth)/                   # ✓ centred brand shell, no nav — auth-feature.md
 │   ├── layout.tsx
@@ -329,7 +330,8 @@ One file per `(marketing)` route: `hero.tsx`, `landing-sections.tsx`, `about-sec
 forms/
 │
 ├── form-field.tsx      # TextField, SelectField, SwitchField, FormAlert (Arabic errors)
-├── file-dropzone.tsx   # ✓ images (PDFs later): click / drop, uploads at once, preview, replace/remove
+├── file-dropzone.tsx   # ✓ images: click / drop, uploads at once, preview, replace/remove
+├── pdf-dropzone.tsx    # ✓ the PDF sibling: holds a private key, shows name + size, "open" for the saved file
 ├── phone-field.tsx     # Egyptian mobile: 01[0125]XXXXXXXX
 ├── brand-form.tsx      # ✓ the reference entity form — brands-feature.md
 ├── platform-form.tsx   # ✓ controller-platforms-feature.md
@@ -337,6 +339,7 @@ forms/
 ├── ic-form.tsx         # ✓ ics-admin-feature.md — chip fields, platform rows (useFieldArray)
 ├── programmer-form.tsx # ✓ programmers-admin-feature.md — tool fields, support rows with OBD / Boot / Bench
 ├── controller-form.tsx # ✓ controllers-admin-feature.md — one platform, hardware / software numbers, condition + فيرجن
+├── pinout-form.tsx     # ✓ pinouts-admin-feature.md — optional platform, connector, preview + PDF, download access
 ├── tag-input.tsx       # ✓ string[] as chips (IC markings): Enter / comma / paste, de-duplicated
 └── <entity>-form.tsx   # one file per entity form
 ```
@@ -373,7 +376,7 @@ admin/
 ├── programmers/      # ✓ programmers-view, programmer-editor, delete-programmer-dialog — programmers-admin-feature.md
 ├── controllers/      # ✓ controllers-view, controller-editor, delete-controller-dialog — controllers-admin-feature.md
 ├── products/         # ✓ product-image, stock-cell — the cells every sold type's table shares
-├── pinouts/
+├── pinouts/          # ✓ pinouts-view, pinout-editor, delete-pinout-dialog — pinouts-admin-feature.md
 ├── orders/           # the queue, status transitions, COD confirmation
 ├── shipping-zones/
 └── shared/           # ✓ page-header, confirm-delete-dialog, section-placeholder (temporary),
@@ -406,6 +409,7 @@ actions/
 ├── ic/             # ✓ list-, create-, update-, delete-ic.ts, upload-ic-image.ts — ics-admin-feature.md
 ├── programmer/     # ✓ list-, create-, update-, delete-programmer.ts, upload-programmer-image.ts — programmers-admin-feature.md
 ├── controller/     # ✓ list-, create-, update-, delete-controller.ts, upload-controller-image.ts — controllers-admin-feature.md
+├── pinout/         # ✓ list-, create-, update-, delete-pinout.ts, upload-pinout-image.ts, upload-pinout-pdf.ts — pinouts-admin-feature.md
 └── admin/
 ```
 
@@ -429,7 +433,7 @@ services/
 │
 ├── product.service.ts      # ✓ rules every sold type shares — listing columns, money, errors, order-history delete
 ├── search.service.ts
-├── pinout.service.ts
+├── pinout.service.ts       # ✓ pinouts CRUD rules + openPdf (the PDF access rule) — pinouts-admin-feature.md
 ├── cart.service.ts
 ├── checkout.service.ts     # shipping fee, stock reservation, order creation (one transaction)
 ├── order.service.ts        # the status state machine
@@ -438,7 +442,7 @@ services/
 │   ├── paymob.provider.ts
 │   └── cod.provider.ts
 ├── shipping.service.ts
-├── storage.service.ts      # ✓ R2 — uploadImage / deleteImageByUrl / getImage (product-images.md)
+├── storage.service.ts      # ✓ R2 — images (uploadImage / deleteImageByUrl / getImage) and pinout PDFs (uploadPdf / deletePdfByKey / getPdf) — product-images.md
 ├── brand.service.ts        # ✓ brands CRUD rules — brands-feature.md
 ├── platform.service.ts     # ✓ platforms CRUD rules — controller-platforms-feature.md
 ├── ic.service.ts           # ✓ ICs CRUD rules — ics-admin-feature.md
@@ -461,7 +465,7 @@ services/
 
 # repositories/
 
-Data access — the only layer that imports the Prisma client. One file per aggregate (`product.repository.ts`, `order.repository.ts`…). Services call repositories; nothing else does. Built so far (✓): `user.repository.ts` — selects session columns only, never the whole row; `brand.repository.ts`; `platform.repository.ts`; `product.repository.ts` (shared by every sold type), `ic.repository.ts`, `programmer.repository.ts` and `controller.repository.ts` (`Product` scoped to its type).
+Data access — the only layer that imports the Prisma client. One file per aggregate (`product.repository.ts`, `order.repository.ts`…). Services call repositories; nothing else does. Built so far (✓): `user.repository.ts` — selects session columns only, never the whole row; `brand.repository.ts`; `platform.repository.ts`; `product.repository.ts` (shared by every sold type), `ic.repository.ts`, `programmer.repository.ts` and `controller.repository.ts` (`Product` scoped to its type); `pinout.repository.ts`.
 
 ---
 
@@ -484,6 +488,7 @@ hooks/
 ├── use-ics.ts             # ✓ list + create / update / delete / upload-image mutations
 ├── use-programmers.ts     # ✓ list + create / update / delete / upload-image mutations
 ├── use-controllers.ts     # ✓ list + create / update / delete / upload-image mutations
+├── use-pinouts.ts         # ✓ list + create / update / delete / upload-image / upload-pdf mutations
 └── use-mobile.ts          # ✓ from `shadcn add sidebar` — the one non-React-Query hook here
 ```
 
@@ -493,7 +498,7 @@ UI consumes hooks instead of calling Server Actions directly.
 
 # schemas/
 
-Zod schemas shared by forms and Server Actions — product, pinout, address, checkout, search… Messages in Arabic. Built so far (✓): `brand.schema.ts`, `platform.schema.ts`, `product.schema.ts` (the listing fields every sold type spreads), `ic.schema.ts`, `programmer.schema.ts`, `controller.schema.ts`.
+Zod schemas shared by forms and Server Actions — product, pinout, address, checkout, search… Messages in Arabic. Built so far (✓): `brand.schema.ts`, `platform.schema.ts`, `product.schema.ts` (the listing fields every sold type spreads), `ic.schema.ts`, `programmer.schema.ts`, `controller.schema.ts`, `pinout.schema.ts`.
 
 ---
 
@@ -543,7 +548,7 @@ prisma/
 
 Global TypeScript types: DTOs, `ActionResult`, search result, order summary.
 
-Built so far (✓): `action-result.ts` (`ActionResult<T>` with optional `fieldErrors`), `user.ts` (`ClerkIdentity`, `SessionUser`, `SessionSummary`, `AuthCallbackResult`), `brand.ts` (`BrandListItem`, `BrandDetail`), `platform.ts` (`PlatformListItem`, `PlatformDetail`, `PlatformLinkCounts`), `ic.ts` (`IcListItem`, `IcDetail` — money as strings), `programmer.ts` (`ProgrammerListItem` with derived `modes`, `ProgrammerDetail`), `controller.ts` (`ControllerListItem` with its platform, `ControllerDetail` — litres as a string).
+Built so far (✓): `action-result.ts` (`ActionResult<T>` with optional `fieldErrors`), `user.ts` (`ClerkIdentity`, `SessionUser`, `SessionSummary`, `AuthCallbackResult`), `brand.ts` (`BrandListItem`, `BrandDetail`), `platform.ts` (`PlatformListItem`, `PlatformDetail`, `PlatformLinkCounts`), `ic.ts` (`IcListItem`, `IcDetail` — money as strings), `programmer.ts` (`ProgrammerListItem` with derived `modes`, `ProgrammerDetail`), `controller.ts` (`ControllerListItem` with its platform, `ControllerDetail` — litres as a string), `pinout.ts` (`PinoutListItem` with its platform and `hasPdf`, `PinoutDetail`).
 
 ---
 
@@ -567,7 +572,7 @@ Pure functions — no React, no database.
 - `product-types.ts` ✓ (partly) — `IC_CATEGORIES`, `IC_CATEGORY_META`, `PROGRAMMER_MODES`, `PROGRAMMER_MODE_META`, `CONTROLLER_CONDITIONS`, `CONDITION_META`, `VIRGIN_META`, `STOCK_STATE_META` today; the `PRODUCT_TYPE_META` registry comes with the storefront
 - `order-status.ts` — statuses, Arabic labels, allowed transitions
 - `governorates.ts` — the 27 governorates (Arabic names + codes)
-- `routes.ts` ✓ (`ROUTES`, `ADMIN_ROUTES`, `ADMIN_HARDWARE_ROOT`, `HOME_BY_ROLE`), `query-keys.ts` ✓, `navigation.ts` ✓ (`MAIN_NAV`), `admin-navigation.ts` ✓ (`ADMIN_SECTIONS`, `HARDWARE_FOLDER`, `ADMIN_NAV`, `findAdminSection`, `findAdminFolder`), `images.ts` ✓ (`IMAGE_MAX_BYTES`, `IMAGE_ACCEPT`), `roles.ts`, `pagination.ts`
+- `routes.ts` ✓ (`ROUTES`, `ADMIN_ROUTES`, `ADMIN_HARDWARE_ROOT`, `HOME_BY_ROLE`), `query-keys.ts` ✓, `navigation.ts` ✓ (`MAIN_NAV`), `admin-navigation.ts` ✓ (`ADMIN_SECTIONS`, `HARDWARE_FOLDER`, `ADMIN_NAV`, `findAdminSection`, `findAdminFolder`), `images.ts` ✓ (`IMAGE_MAX_BYTES`, `IMAGE_ACCEPT`), `pdf.ts` ✓ (`PDF_MAX_BYTES`, `PDF_ACCEPT`), `pinouts.ts` ✓ (`PINOUT_ACCESS_META`, `pinoutPdfHref`), `roles.ts`, `pagination.ts`
 
 ---
 
@@ -601,7 +606,7 @@ Every feature follows the same order:
 
 - UI never talks to Prisma.
 - UI talks only to React Query hooks.
-  - *Exception:* read-only Server Component pages (catalog pages, the `/admin` figures) may call services directly for first-paint data and SEO. Document each one. Today: every `/admin/*` page (`authService.requireAdmin()`), the `/admin/brands`, `/admin/platforms`, `/admin/hardware/ics`, `/admin/hardware/programmers` and `/admin/hardware/controllers` list prefetch and edit-page load (`brandService`, `platformService`, `icService`, `programmerService`, `controllerService`), the platforms prefetch on the IC, programmer and controller new/edit pages, and `/auth-callback` (`authService.requireSignedIn()`).
+  - *Exception:* read-only Server Component pages (catalog pages, the `/admin` figures) may call services directly for first-paint data and SEO. Document each one. Today: every `/admin/*` page (`authService.requireAdmin()`), the `/admin/brands`, `/admin/platforms`, `/admin/hardware/ics`, `/admin/hardware/programmers`, `/admin/hardware/controllers` and `/admin/hardware/pinouts` list prefetch and edit-page load (`brandService`, `platformService`, `icService`, `programmerService`, `controllerService`, `pinoutService`), the platforms prefetch on the IC, programmer, controller and pinout new/edit pages, and `/auth-callback` (`authService.requireSignedIn()`).
 - Hooks call Server Actions.
 - Server Actions call Services.
 - Services call Repositories; only Repositories touch Prisma.

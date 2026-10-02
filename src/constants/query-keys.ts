@@ -26,4 +26,8 @@ export const queryKeys = {
     all: ["controllers"] as const,
     list: () => ["controllers", "list"] as const,
   },
+  pinouts: {
+    all: ["pinouts"] as const,
+    list: () => ["pinouts", "list"] as const,
+  },
 }
