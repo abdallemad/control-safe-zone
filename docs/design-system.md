@@ -177,6 +177,13 @@ Sizes add **`xl`** (h-11, `text-base`), the mobile CTA for "أضف إلى الس
 | `REFURBISHED` | مجدد | `success` |
 | `isVirgin` | فيرجن | `brand` (shown *in addition* to the condition) |
 
+**Pinout access** (`Pinout.requiresSignIn`). Implemented: labels and tones in `PINOUT_ACCESS_META` (`constants/pinouts.ts`), used by the admin pinouts table. The same table shows a pinout's PDF as `PDF` `success` / `بدون PDF` `warning`
+
+| Value | Label | Tone |
+|---|---|---|
+| `true` | للمسجّلين | `info` |
+| `false` | للجميع | `success` |
+
 **`OrderStatus`**
 
 | Value | Label | Tone |

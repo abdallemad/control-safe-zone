@@ -5,6 +5,95 @@ Notable changes to Control Safe Zone, newest first. Milestones refer to
 
 ---
 
+## 2026-10-01 — Pinouts CRUD (M2)
+
+**الهاردوير › البن أوت** gets the same admin treatment as controllers. The
+placeholder is replaced by a list plus create, edit and delete, with create
+and edit as full pages. A pinout is **not a `Product`** (no price, stock or
+orders), so it uses the reference-CRUD layers rather than the shared product
+layer. It has two files: a **preview image** on R2 (public, like covers) and a
+**PDF** in the private side of the bucket, served only by the new
+`GET /api/pinouts/[id]/pdf` after an access check. This finishes the admin
+side of M2's catalog. Full reference:
+[docs/pinouts-admin-feature.md](docs/pinouts-admin-feature.md).
+
+### Added
+
+- **Pages**:
+  - `/admin/hardware/pinouts`: the list, prefetched and hydrated. It shows the preview, the name with the connector beneath, the platform (or **بدون منصة**), a **PDF / بدون PDF** badge, the **download access** badge (للمسجّلين / للجميع) and status. It has normalised search, a **platform filter** (including "بدون منصة"), a row menu with **فتح الـ PDF**, and loading, empty, error and no-results states.
+  - `/admin/hardware/pinouts/new` and `/[id]/edit`: full-page forms that prefetch the platforms. Every page calls `requireAdmin()`.
+- **Route**: `GET /api/pinouts/[id]/pdf`, the third Route Handler. The access rule lives in `pinoutService.openPdf`:
+  - admins can open every PDF, including an inactive pinout's;
+  - otherwise an inactive pinout is a 404;
+  - with `requiresSignIn`, someone signed out is sent to `/sign-in`;
+  - the response is `application/pdf`, `inline`, named after the slug, `private, no-store`.
+- **Layers**:
+  - `schemas/pinout.schema.ts`:
+    - name 2–120;
+    - an optional platform and connector;
+    - only our own preview URL and PDF key;
+    - **at least one of the two files**.
+  - `repositories/pinout.repository.ts` and `types/pinout.ts`. The list carries `hasPdf`, never the key.
+  - `services/pinout.service.ts`, with these rules:
+    - an unknown platform is an error on `platformId`;
+    - update can link, move or unlink the platform;
+    - a replaced or removed preview **or PDF** is deleted from R2 after the save;
+    - the delete is never refused, and both files leave R2 with the row.
+  - `actions/pinout/*`, including `upload-pinout-pdf.ts`.
+  - `hooks/use-pinouts.ts`, which also invalidates the platforms list.
+  - `queryKeys.pinouts`.
+- **Components**:
+  - `components/admin/pinouts/*`: view, editor, delete dialog.
+  - `components/forms/pinout-form.tsx`:
+    - the slug fills from platform + connector, or from the name when no platform is picked, with a live `/pinouts/…` preview;
+    - the files card (preview + PDF);
+    - the access card (`requiresSignIn`, on by default per open question 1, and `isActive`).
+  - `components/forms/pdf-dropzone.tsx`, **reusable**: the PDF sibling of `FileDropzone`. It holds a private key, shows the picked file's name and size, and opens the saved file through the PDF route.
+- **Constants**: `constants/pdf.ts` (`PDF_MAX_BYTES` 10 MB, `PDF_ACCEPT`) and `constants/pinouts.ts` (`PINOUT_ACCESS_META`, `pinoutPdfHref`).
+- **Strings**: `ar.pinouts`, `ar.pdfDropzone`, `ar.errors.uploadPdf`.
+- **Docs**: `docs/pinouts-admin-feature.md`.
+
+### Changed
+
+- **`storage.service.ts`**:
+  - PDFs: `uploadPdf`, which checks the `%PDF-` magic bytes and the 10 MB cap; `deletePdfByKey`; `getPdf`; and `isValidPdfKey`.
+  - Keys are `pinout-pdfs/<uuid>.pdf`, a prefix the public image route can never serve.
+  - The image functions now share private put / delete / get helpers, with no behaviour change.
+- **`next.config.ts`**: `serverActions.bodySizeLimit` goes from `3mb` to `11mb` for the 10 MB PDFs. Each service still enforces its own cap.
+- **Docs**:
+  - `admin-dashboard.md`: pinouts marked as built.
+  - `folder-structure.md`: ticks the new doc, and marks the new files and the PDF route.
+  - `product-images.md`: pinout previews are live; PDFs, the body limit and the presigner note.
+  - `design-system.md`: the pinout access tones.
+  - `brands-feature.md`: copy checklist.
+
+### Notes
+
+- **Verified against the dev DB and R2**, using a temporary route since deleted:
+  - three PDF upload refusals (wrong bytes, too large, empty);
+  - create; duplicate slug; an unknown platform on `platformId` with nothing written;
+  - seven schema cases;
+  - the platform's delete refused while the pinout is linked;
+  - update replacing the PDF and removing the preview, with **both old objects confirmed gone from R2**;
+  - delete removing the new PDF; not found twice.
+- **Verified over HTTP**: the PDF route returned 303 to sign-in, 404 for an unknown id, 200 with the right headers and bytes once public, and 404 once inactive. The PDF's key requested through the **image** route returned 404.
+
+  The run confirmed no test rows or R2 objects were left.
+- **Verified in the browser**, on a temporary page since deleted:
+  - the list's badges, search and no-results state, and the **platform filter and row menu popups**;
+  - the delete dialog's "admins only" refusal and the empty state;
+  - the form's errors, both auto-slug paths, and the PDF picker's browser and server refusals;
+  - the edit form pre-filled, with the saved PDF's فتح link;
+  - 375px layout; no console errors.
+
+  All pinout routes redirect to sign-in when signed out.
+- **Not exercised**:
+  - the signed-in admin flow;
+  - the PDF route as a signed-in customer or admin.
+- `npm run lint` already failed before this change, on the generated Prisma client (`src/generated`). Everything else lints clean.
+
+---
+
 ## 2026-09-30 — Controllers CRUD (M2)
 
 **الهاردوير › الكنترولات** gets the same admin treatment as ICs and

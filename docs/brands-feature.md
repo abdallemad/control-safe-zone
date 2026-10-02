@@ -113,7 +113,7 @@ A logo uploaded and then abandoned (the form is cancelled) stays in R2 as an orp
 
 ## Copying this for another CRUD
 
-Done four times already: [`controller-platforms-feature.md`](./controller-platforms-feature.md), [`ics-admin-feature.md`](./ics-admin-feature.md), [`programmers-admin-feature.md`](./programmers-admin-feature.md) and [`controllers-admin-feature.md`](./controllers-admin-feature.md). **For a sold type** (a `Product` plus its detail row), start from the shared product layer described in the programmers doc instead of this file alone.
+Done five times already: [`controller-platforms-feature.md`](./controller-platforms-feature.md), [`ics-admin-feature.md`](./ics-admin-feature.md), [`programmers-admin-feature.md`](./programmers-admin-feature.md), [`controllers-admin-feature.md`](./controllers-admin-feature.md) and [`pinouts-admin-feature.md`](./pinouts-admin-feature.md). **For something that is not sold** but has files (pinouts: an image and a private PDF), start from this file and the pinouts doc. **For a sold type** (a `Product` plus its detail row), start from the shared product layer described in the programmers doc instead of this file alone.
 
 1. `schemas/<entity>.schema.ts`: Zod with Arabic messages.
 2. `repositories/<entity>.repository.ts`: selects, CRUD.

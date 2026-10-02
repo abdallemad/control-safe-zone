@@ -1,14 +1,14 @@
 # Images on R2
 
-Every uploaded image (brand logos, IC, programmer and controller covers today; pinout previews next) lives in a **private Cloudflare R2 bucket** and is served by **our own route**, `GET /api/images/<key>`. The database stores the **path string**, never a bucket URL:
+Every uploaded image (brand logos, IC, programmer and controller covers, and pinout previews) lives in a **private Cloudflare R2 bucket** and is served by **our own route**, `GET /api/images/<key>`. The database stores the **path string**, never a bucket URL:
 
 ```text
 Brand.logoUrl    = "/api/images/brands/3f0c…-….png"
 Product.imageUrl = "/api/images/products/<uuid>.<ext>"      (ICs, programmers, controllers — productService.uploadImage)
-Pinout.imageUrl  = "/api/images/pinouts/<uuid>.<ext>"       (planned)
+Pinout.imageUrl  = "/api/images/pinouts/<uuid>.<ext>"       (pinoutService.uploadImage)
 ```
 
-Pinout **PDFs** do not use this route. They are served by `GET /api/pinouts/[id]/pdf` after the access check (`pinouts-feature.md`).
+Pinout **PDFs** do not use this route. They sit in the same bucket under `pinout-pdfs/<uuid>.pdf`, a prefix the image route never matches, the database stores the bare key (`Pinout.pdfKey`), and they are served by `GET /api/pinouts/[id]/pdf` after the access check ([`pinouts-admin-feature.md`](./pinouts-admin-feature.md#pdfs)).
 
 ---
 
@@ -23,7 +23,7 @@ Pinout **PDFs** do not use this route. They are served by `GET /api/pinouts/[id]
 | `R2_BUCKET_NAME` | `control-safe-zone` |
 | `S3_API` | `https://<account>.r2.cloudflarestorage.com`, the S3-compatible endpoint |
 
-Package: `@aws-sdk/client-s3` (R2 speaks the S3 API). `@aws-sdk/s3-request-presigner` is installed but **not used yet**. Uploads go through a Server Action (see below). It will be needed for direct browser uploads of large files, such as PDFs.
+Package: `@aws-sdk/client-s3` (R2 speaks the S3 API). `@aws-sdk/s3-request-presigner` is installed but **not used**. Uploads, pinout PDFs included, go through a Server Action (see below). It would only be needed for direct browser uploads of files much larger than the body limit.
 
 ---
 
@@ -32,11 +32,11 @@ Package: `@aws-sdk/client-s3` (R2 speaks the S3 API). `@aws-sdk/s3-request-presi
 | File | Role |
 |---|---|
 | `lib/r2.ts` | `getR2()`: the `S3Client` (region `auto`, R2 endpoint), created on first use so a build without the variables still compiles. `getR2Bucket()`. `server-only` |
-| `services/storage.service.ts` | The **only** file that talks to R2: `uploadImage(folder, file)`, `deleteImageByUrl(url)`, `getImage(key)`. Plus `imageUrlFromKey`, `keyFromImageUrl`, `isValidImageKey` |
-| `constants/images.ts` | `IMAGE_MAX_BYTES` (2 MB) and `IMAGE_ACCEPT` (png, jpeg, webp), shared by the browser check and the server check |
+| `services/storage.service.ts` | The **only** file that talks to R2: `uploadImage(folder, file)`, `deleteImageByUrl(url)`, `getImage(key)`, and for pinout PDFs `uploadPdf(file)` (≤ 10 MB, `%PDF-` magic bytes, `private, no-store`), `deletePdfByKey(key)`, `getPdf(key)`. Plus `imageUrlFromKey`, `keyFromImageUrl`, `isValidImageKey`, `isValidPdfKey` |
+| `constants/images.ts` | `IMAGE_MAX_BYTES` (2 MB) and `IMAGE_ACCEPT` (png, jpeg, webp), shared by the browser check and the server check. `constants/pdf.ts` is the same for PDFs: `PDF_MAX_BYTES` (10 MB), `PDF_ACCEPT` |
 | `app/api/images/[...key]/route.ts` | The public image route |
 | `components/forms/file-dropzone.tsx` | The reusable picker (see `brands-feature.md`) |
-| `next.config.ts` | `images.localPatterns` (next/image may optimise `/api/images/**` only, no query strings). `experimental.serverActions.bodySizeLimit: "3mb"` (2 MB image + multipart overhead) |
+| `next.config.ts` | `images.localPatterns` (next/image may optimise `/api/images/**` only, no query strings). `experimental.serverActions.bodySizeLimit: "11mb"` (a 10 MB pinout PDF + multipart overhead; each service still enforces its own cap) |
 
 ---
 
@@ -86,4 +86,4 @@ Use `next/image` with the stored path (`<Image src={brand.logoUrl} fill sizes="4
 ## Later
 
 - An orphan sweep for uploads never saved to a row (abandoned forms).
-- Presigned PUT URLs (`s3-request-presigner`) for the pinout PDFs, which can exceed the Server Action body limit.
+- Presigned PUT URLs (`s3-request-presigner`), only if pinout PDFs ever need to exceed 10 MB. They would also need CORS on the bucket.
